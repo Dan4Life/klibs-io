@@ -5,9 +5,7 @@ import {PackageSearchResults} from "@/app/types";
 import {cardCn} from '@rescui/card';
 import {textCn} from '@rescui/typography';
 import {ReadIcon} from '@rescui/icons';
-import {Tag, presets} from '@rescui/tag';
-import {getPlatformName, mapNativeTargetToGroupName} from "@/app/types";
-import {Platform} from "@/app/types";
+import {getPackageTargetGroupLabels} from "@/app/types";
 import PlatformTag from "@/app/ui/platform-tag";
 
 import styles from './styles.module.css';
@@ -48,28 +46,6 @@ function SearchTextWrap({search, children}: { search?: PackageCardProps['search'
     }, [search, children]);
 }
 
-function getVersionedPlatformsFromTargets(targets: string[]) {
-    return targets.filter(target => target.startsWith("JVM:") || target.startsWith("ANDROID_JVM:")).map(target => {
-        const [platform, version] = target.split(":");
-        if (platform === "ANDROID_JVM") {
-            return `AndroidJVM ${version}`;
-        }
-        return `${platform} ${version}`;
-    });
-}
-
-function getNativePlatformGroups(targets: string[]): string[] {
-    const nativeGroups = new Set<string>();
-    for (const target of targets) {
-        const [platform, groupTarget] = target.split(":");
-        if (platform === "NATIVE") {
-            const group = groupTarget.split("_")[0]; // Take only the first part of group_target
-            nativeGroups.add(group);
-        }
-    }
-    return Array.from(nativeGroups);
-}
-
 // Helper function to generate package link
 function getPackageLink(packageData: PackageSearchResults) {
     return `/package/${packageData.groupId}/${packageData.artifactId}`;
@@ -78,9 +54,7 @@ function getPackageLink(packageData: PackageSearchResults) {
 export default function PackageCard({featuredPackage, className, search}: PackageCardProps) {
     const packageLink = featuredPackage ? getPackageLink(featuredPackage) : null;
 
-    const versionedPlatforms = featuredPackage?.targets && getVersionedPlatformsFromTargets(featuredPackage?.targets);
-    const nonVersionedPlatforms = featuredPackage?.platforms.filter(platform => platform !== Platform.common && platform !== Platform.native && platform !== Platform.jvm && platform !== Platform.androidJvm)
-    const nativeTargets = featuredPackage?.targets && getNativePlatformGroups(featuredPackage?.targets);
+    const targetGroups = featuredPackage?.targetGroups ? getPackageTargetGroupLabels(featuredPackage.targetGroups) : [];
 
     return (
         <Link
@@ -126,26 +100,13 @@ export default function PackageCard({featuredPackage, className, search}: Packag
                                 </p>
                             </div>
 
-                            {/*Platforms and targets*/}
+                            {/*Target groups*/}
                             <div className={styles.platforms}>
-                                {versionedPlatforms?.length ? versionedPlatforms.map(platform => (
-                                    <PlatformTag key={platform}>
-                                        {platform}
+                                {targetGroups.map(group => (
+                                    <PlatformTag key={group}>
+                                        {group}
                                     </PlatformTag>
-                                )) : null}
-                                {nonVersionedPlatforms?.length ? nonVersionedPlatforms.map(platform => (
-                                    <PlatformTag key={platform}>
-                                        {getPlatformName(platform)}
-                                    </PlatformTag>
-                                )) : null}
-                                {nativeTargets?.length ? nativeTargets.map(target => (
-                                    <Tag
-                                        key={target}
-                                        {...presets['filled-light']}
-                                    >
-                                        {mapNativeTargetToGroupName(target)}
-                                    </Tag>
-                                )) : null}
+                                ))}
                             </div>
                         </div>
                 </>

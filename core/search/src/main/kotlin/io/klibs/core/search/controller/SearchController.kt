@@ -85,9 +85,10 @@ class SearchController(
         @RequestParam("page", required = false, defaultValue = "1")
         @Parameter(
             description = "Page index beginning with 1 (1..N)",
-            schema = Schema(type = "integer", minimum = "1", defaultValue = "1")
+            schema = Schema(type = "integer", minimum = "1", maximum = "50", defaultValue = "1")
         )
-        @Min(value = 0, message = "Page must be >= 0")
+        @Min(value = 1, message = "Page must be >= 1")
+        @Max(value = 50, message = "Page must be <= 50")
         page: Int,
 
         @RequestParam("limit", required = false, defaultValue = "20")
@@ -102,7 +103,7 @@ class SearchController(
         return searchService.search(
             query = query,
             platforms = platforms.map { PackagePlatform.findBySerializableName(it) },
-            targetFilters = emptyMap(),
+            targetGroupFilters = emptyList(),
             ownerLogin = owner,
             sort = SearchSort.findBySerializableName(sortBy),
             markers = markers,
@@ -120,9 +121,10 @@ class SearchController(
         @RequestParam("page", required = false, defaultValue = "1")
         @Parameter(
             description = "Page index beginning with 1 (1..N)",
-            schema = Schema(type = "integer", minimum = "1", defaultValue = "1")
+            schema = Schema(type = "integer", minimum = "1", maximum = "50", defaultValue = "1")
         )
-        @Min(value = 0, message = "Page must be >= 0")
+        @Min(value = 1, message = "Page must be >= 1")
+        @Max(value = 50, message = "Page must be <= 50")
         page: Int,
 
         @RequestParam("limit", required = false, defaultValue = "20")
@@ -143,7 +145,7 @@ class SearchController(
             val res = searchService.search(
                 query = query,
                 platforms = emptyList(),
-                targetFilters = targetFilters,
+                targetGroupFilters = targetGroupFilters,
                 ownerLogin = owner,
                 sort = SearchSort.findBySerializableName(sortBy),
                 markers = markers,
@@ -196,9 +198,10 @@ class SearchController(
         @RequestParam("page", required = false, defaultValue = "1")
         @Parameter(
             description = "Page index beginning with 1 (1..N)",
-            schema = Schema(type = "integer", minimum = "1", defaultValue = "1")
+            schema = Schema(type = "integer", minimum = "1", maximum = "50", defaultValue = "1")
         )
-        @Min(value = 0, message = "Page must be >= 0")
+        @Min(value = 1, message = "Page must be >= 1")
+        @Max(value = 50, message = "Page must be <= 50")
         page: Int,
 
         @RequestParam("limit", required = false, defaultValue = "20")
@@ -213,7 +216,7 @@ class SearchController(
         return searchService.searchPackage(
             query = query,
             platforms = platforms.map { PackagePlatform.findBySerializableName(it) },
-            targetFilters = emptyMap(),
+            targetGroupFilters = emptyList(),
             ownerLogin = owner,
             sort = SearchSort.findBySerializableName(sortBy),
             page = page,
@@ -227,9 +230,10 @@ class SearchController(
         @RequestParam("page", required = false, defaultValue = "1")
         @Parameter(
             description = "Page index beginning with 1 (1..N)",
-            schema = Schema(type = "integer", minimum = "1", defaultValue = "1")
+            schema = Schema(type = "integer", minimum = "1", maximum = "50", defaultValue = "1")
         )
-        @Min(value = 0, message = "Page must be >= 0")
+        @Min(value = 1, message = "Page must be >= 1")
+        @Max(value = 50, message = "Page must be <= 50")
         page: Int,
 
         @RequestParam("limit", required = false, defaultValue = "20")
@@ -250,7 +254,7 @@ class SearchController(
             val res = searchService.searchPackage(
                 query = query,
                 platforms = emptyList(),
-                targetFilters = targetFilters,
+                targetGroupFilters = targetGroupFilters,
                 ownerLogin = owner,
                 sort = SearchSort.findBySerializableName(sortBy),
                 page = page,
@@ -273,7 +277,8 @@ internal fun SearchPackageResult.toDTO(): SearchPackageResultDTO {
         latestVersion = this.latestVersion,
         releaseTsMillis = this.releaseTs.toEpochMilli(),
         platforms = this.platforms.map { it.serializableName },
-        targets = this.targetsMap
+        targets = this.targetGroups,
+        targetGroups = this.targetGroups,
     )
 }
 

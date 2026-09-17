@@ -1,0 +1,35 @@
+package io.klibs.integration.maven.service
+
+import io.klibs.integration.maven.MavenArtifact
+import io.klibs.integration.maven.ScraperType
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Interface for scrapers used to interact with Maven Central repositories to discover and fetch metadata
+ * about Kotlin Multiplatform (KMP) artifacts and their versions.
+ */
+interface MavenCentralScraper {
+
+    /**
+     * Fetches Kotlin Multiplatform (KMP) artifacts information from Maven Central based on already known artifacts.
+     * Includes functionality to report errors encountered
+     * during the discovery process.
+     *
+     * @param errorChannel A channel used to report errors encountered during the discovery process.
+     * @return A flow emitting discovered Maven artifacts.
+     */
+    suspend fun findNewVersions(
+        knownArtifacts: Map<String, Set<String>>,
+        errorChannel: Channel<Exception>
+    ): Flow<MavenArtifact>
+
+
+    /**
+     * Specifies the type of scraper used for interacting with Maven Central repositories.
+     * Determines the source or method used to query or fetch artifact metadata.
+     *
+     * The chosen scraper type affects the underlying implementation of metadata retrieval strategies.
+     */
+    val scraperType: ScraperType
+}

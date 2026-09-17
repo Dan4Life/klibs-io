@@ -11,10 +11,11 @@ import io.klibs.integration.mcp.mapper.McpToolMapper
 import io.klibs.integration.mcp.service.McpProjectSearchService
 import io.klibs.integration.mcp.tool.McpProjectSearchTool
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.mapstruct.factory.Mappers
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.time.Instant
@@ -22,13 +23,13 @@ import java.time.Instant
 class McpProjectSearchToolTest {
 
     private val mcpProjectSearchService = mock<McpProjectSearchService>()
-    private val mcpToolMapper = Mappers.getMapper(McpToolMapper::class.java)
+    private val mcpToolMapper = McpToolMapper()
     private val uut = McpProjectSearchTool(mcpProjectSearchService, mcpToolMapper)
 
     @Test
     fun `searchProjects passes all parameters to service`() {
         val serviceResponse = McpProjectSearchResultDto(projects = emptyList())
-        val targetFilters = mapOf(TargetGroup.JVM to setOf("11", "17"))
+        val targetFilters = listOf(mapOf(TargetGroup.JVM to setOf("11", "17")))
 
         whenever(
             mcpProjectSearchService.mcpProjectSearch(
@@ -41,7 +42,7 @@ class McpProjectSearchToolTest {
         val result = uut.searchProjects(
             query = "kotlin",
             platforms = listOf("jvm", "native"),
-            targetFilters = targetFilters,
+            targetGroupFilters = targetFilters,
         )
 
         assertTrue(result.projects.isEmpty())
@@ -49,6 +50,22 @@ class McpProjectSearchToolTest {
             query = "kotlin",
             platforms = listOf(PackagePlatform.JVM, PackagePlatform.NATIVE),
             targetFilters = targetFilters,
+        )
+    }
+
+    @Test
+    fun `searchProjects rejects Unknown target group and does not call service`() {
+        val filters = listOf(mapOf(TargetGroup.Unknown to emptySet<String>()))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            uut.searchProjects(query = "kotlin", platforms = emptyList(), targetGroupFilters = filters)
+        }
+
+        verify(mcpProjectSearchService, never()).mcpProjectSearch(
+            query = org.mockito.kotlin.any(),
+            platforms = org.mockito.kotlin.any(),
+            targetFilters = org.mockito.kotlin.any(),
+            maxPackagesPerProject = org.mockito.kotlin.any(),
         )
     }
 
@@ -74,14 +91,25 @@ class McpProjectSearchToolTest {
             )
         )
 
-        whenever(mcpProjectSearchService.mcpProjectSearch(query = "state machine", platforms = emptyList(), targetFilters = emptyMap()))
+        whenever(mcpProjectSearchService.mcpProjectSearch(query = "state machine", platforms = emptyList(), targetFilters = emptyList()))
             .thenReturn(serviceResponse)
 
-        val result = uut.searchProjects(query = "state machine", platforms = emptyList(), targetFilters = emptyMap())
+        val result = uut.searchProjects(query = "state machine", platforms = emptyList(), targetGroupFilters = emptyList())
 
-        val mappedPackage = result.projects.single().packages.single()
+        val mappedProject = result.projects.single()
+        assertEquals("kstatemachine", mappedProject.projectName)
+        assertEquals("KStateMachine", mappedProject.projectAuthor)
+        assertEquals("Test project", mappedProject.description)
+        assertEquals(listOf("common"), mappedProject.platforms)
+        assertEquals(emptyList<String>(), mappedProject.targets)
+        assertEquals(1, mappedProject.totalPackages)
+
+        val mappedPackage = mappedProject.packages.single()
+        assertEquals("io.github.kstatemachine", mappedPackage.groupId)
+        assertEquals("kstatemachine-core", mappedPackage.artifactId)
         assertEquals("0.32.0-alpha", mappedPackage.latestVersion)
         assertEquals("0.31.1", mappedPackage.latestStableVersion)
+        assertEquals("KStateMachine core module", mappedPackage.description)
     }
 
     private fun searchProjectResult() = SearchProjectResult(

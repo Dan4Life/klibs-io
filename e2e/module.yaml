@@ -1,0 +1,27 @@
+product: jvm/lib
+
+apply:
+  - ../build-logic/templates/spring-web.module-template.yaml
+  - ../build-logic/templates/persistence.module-template.yaml
+  - ../build-logic/templates/mock.module-template.yaml
+  - ../build-logic/templates/spring-cloud.module-template.yaml
+  - ../build-logic/templates/testcontainers.module-template.yaml
+
+# Mirrors app's dependencies: the tests boot the whole Application, whose component
+# scan over `io.klibs` instantiates beans from every module app depends on.
+dependencies:
+  - ../app
+  - ../core/package
+  - ../core/project
+  - ../core/readme
+  - ../core/scm-owner
+  - ../core/scm-repository
+  - ../core/search
+  - ../core/storage
+  - ../integrations/ai
+  - ../integrations/github
+  - ../integrations/maven
+  - ../integrations/mcp
+
+test-dependencies:
+  - $libs.spring.boot.testcontainers

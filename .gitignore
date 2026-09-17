@@ -4,6 +4,9 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+### Kotlin ###
+.kotlin
+
 ### IntelliJ IDEA ###
 .idea
 *.iws
@@ -40,10 +43,17 @@ bin/
 
 cache
 
-localstack-data
+# Docker Compose volumes
+docker-compose-volumes
 
+# Agents' dirs
 .junie/memory
 /.output.txt
 /.agents/skills/
 /.claude/skills/
 /.junie/skills/
+/.codex
+/search-eval/
+
+### Cursor ###
+.cursor/plans/

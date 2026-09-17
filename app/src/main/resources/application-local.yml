@@ -35,12 +35,22 @@ klibs:
       thread-count: 2
     central-sonatype:
       enabled: false
+      type: GOOGLE_MIRROR
+    google-maven-central-mirror:
+      enabled: false
     gmaven:
-      enabled: true
+      enabled: false
       s3:
         bucket-name: local-bucket
         prefix: gmaven
   integration:
     github:
-      personal-access-token: ${PERSONAL_GITHUB_TOKEN}
+      personal-access-token: ${PERSONAL_GITHUB_TOKEN:}
       update-repos-per-iteration: ${KLIBS_UPDATE_GITHUB_REPOS_PER_ITERATION:3}
+  search:
+    opensearch:
+      enabled: true
+      uri: https://localhost:9200
+      username: admin
+      password: OpenSearch!ocalPassw0rd
+      trust-all-certificates: true

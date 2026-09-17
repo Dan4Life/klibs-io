@@ -3,11 +3,14 @@ package io.klibs.core.search.service
 import io.klibs.core.pckg.model.PackagePlatform
 import io.klibs.core.pckg.model.TargetGroup
 import io.klibs.core.search.repository.PackageSearchRepository
+import io.klibs.core.search.repository.PackageSearchRepositoryJdbc
 import io.klibs.core.search.repository.ProjectSearchRepository
+import io.klibs.core.search.repository.ProjectSearchRepositoryJdbc
 import io.klibs.core.search.controller.SearchSort
 import io.klibs.core.search.dto.repository.SearchPackageResult
 import io.klibs.core.search.dto.repository.SearchProjectResult
 import io.klibs.core.search.dto.service.CategoryWithProjects
+import io.klibs.core.search.dto.validation.validateTargetGroupFilters
 import io.micrometer.core.annotation.Timed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +25,8 @@ import kotlin.system.measureNanoTime
 class SearchService(
     private val projectSearchRepository: ProjectSearchRepository,
     private val packageSearchRepository: PackageSearchRepository,
+    private val projectIndexJdbc: ProjectSearchRepositoryJdbc,
+    private val packageIndexJdbc: PackageSearchRepositoryJdbc,
     private val applicationScope: CoroutineScope
 ) {
     /**
@@ -50,7 +55,7 @@ class SearchService(
     fun search(
         query: String?,
         platforms: List<PackagePlatform>,
-        targetFilters: Map<TargetGroup, Set<String>>,
+        targetGroupFilters: List<Map<TargetGroup, Set<String>>>,
         ownerLogin: String?,
         sort: SearchSort,
         markers: List<String>,
@@ -58,10 +63,11 @@ class SearchService(
         page: Int,
         limit: Int
     ): List<SearchProjectResult> {
+        validateTargetGroupFilters(targetGroupFilters)?.let { throw IllegalArgumentException(it) }
         return projectSearchRepository.find(
             query = query,
             platforms = platforms,
-            targetFilters = targetFilters,
+            targetGroupFilters = targetGroupFilters,
             ownerLogin = ownerLogin,
             sortBy = sort,
             markers = markers,
@@ -76,17 +82,18 @@ class SearchService(
     fun searchPackage(
         query: String?,
         platforms: List<PackagePlatform>,
-        targetFilters: Map<TargetGroup, Set<String>>,
+        targetGroupFilters: List<Map<TargetGroup, Set<String>>>,
         ownerLogin: String?,
         sort: SearchSort,
         page: Int,
         limit: Int
     ): List<SearchPackageResult> {
+        validateTargetGroupFilters(targetGroupFilters)?.let { throw IllegalArgumentException(it) }
         return packageSearchRepository.find(
             query = query,
             platforms = platforms,
             ownerLogin = ownerLogin,
-            targetFilters = targetFilters,
+            targetGroupFilters = targetGroupFilters,
             sortBy = sort,
             page = page,
             limit = limit
@@ -96,7 +103,7 @@ class SearchService(
 
     @Transactional(readOnly = true)
     fun searchByCategories(limit: Int): List<CategoryWithProjects> {
-        return projectSearchRepository.findCategoriesWithProjects(limit)
+        return projectIndexJdbc.findCategoriesWithProjects(limit)
             .map { (category, projects) ->
                 CategoryWithProjects(
                     categoryName = category.name,
@@ -107,16 +114,12 @@ class SearchService(
     }
 
     private fun refreshProjectIndexView() {
-        val refreshProjectsNanosTaken = measureNanoTime {
-            projectSearchRepository.refreshIndex()
-        }
+        val refreshProjectsNanosTaken = measureNanoTime { projectIndexJdbc.refreshIndex() }
         logger.info("Updated project search index in ${TimeUnit.NANOSECONDS.toSeconds(refreshProjectsNanosTaken)} seconds")
     }
 
     private fun refreshPackageIndexView() {
-        val refreshPackagesNanosTaken = measureNanoTime {
-            packageSearchRepository.refreshIndex()
-        }
+        val refreshPackagesNanosTaken = measureNanoTime { packageIndexJdbc.refreshIndex() }
         logger.info("Updated package search index in ${TimeUnit.NANOSECONDS.toSeconds(refreshPackagesNanosTaken)} seconds")
     }
 

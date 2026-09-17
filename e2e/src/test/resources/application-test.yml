@@ -1,0 +1,27 @@
+klibs:
+  indexing: false
+  ai: false
+  integration:
+    github:
+      personal-access-token: test
+  scheduling:
+    process-indexing-queue:
+      enabled: false
+    fill-version-type:
+      enabled: false
+    # off: the eval tests build the index themselves via indexer.sync
+    search-index-sync:
+      enabled: false
+
+spring:
+  sql:
+    init:
+      mode: always
+  cloud:
+    aws:
+      region:
+        static: eu-west-1
+      credentials:
+        access-key: test
+        secret-key: test
+      endpoint: http://localhost:4566

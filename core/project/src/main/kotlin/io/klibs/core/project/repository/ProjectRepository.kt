@@ -22,6 +22,9 @@ interface ProjectRepository {
 
     fun findByScmRepoId(scmRepoId: Int): ProjectEntity?
 
+    /** Ids of every project backed by an SCM repository; a repository can back several projects. */
+    fun findIdsByScmRepoId(scmRepoId: Int): List<Int>
+
     fun findByNameAndScmRepoId(name: String, scmRepoId: Int): ProjectEntity?
 
     fun findByNameAndOwnerLogin(name: String, ownerLogin: String): ProjectEntity?
@@ -39,6 +42,12 @@ interface ProjectRepository {
      * Returns null if project is not in project_index (i.e., has no packages).
      */
     fun findPlatformsById(projectId: Int): List<PackagePlatform>?
+
+    /**
+     * Returns `platform_target` tokens from the project_index materialized view.
+     * Returns an empty list if project is not in project_index (i.e., has no packages).
+     */
+    fun findTargetsById(projectId: Int): List<String>
 
     fun findAllForSitemap(): List<SitemapProjectEntry>
 

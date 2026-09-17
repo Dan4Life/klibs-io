@@ -1,5 +1,6 @@
 package io.klibs.core.project
 
+import io.klibs.core.pckg.model.TargetGroup
 import io.klibs.core.project.enums.MarkerType
 import io.swagger.v3.oas.annotations.media.Schema
 
@@ -47,6 +48,13 @@ data class ProjectDetailsDTO(
     val platforms: List<String>,
 
     @Schema(
+        description = "Targets supported by the project's packages. Map where keys are target groups (e.g. 'JVM', 'IOS') and values are sets of specific targets within that group.",
+        type = "object",
+        example = """{"JVM": ["11", "17"], "IOS": ["ios_arm64", "ios_x64"]}"""
+    )
+    val targetGroups: Map<TargetGroup, Set<String>>,
+
+    @Schema(
         description = "Latest version of the project. Not guaranteed to be the same as package versions",
         example = "0.31.1"
     )
@@ -87,6 +95,18 @@ data class ProjectDetailsDTO(
         example = "https://github.com/KStateMachine/kstatemachine/wiki"
     )
     val linkWiki: String?,
+
+    @Schema(
+        description = "Whether the project's GitHub repository is archived",
+        example = "false"
+    )
+    val archived: Boolean,
+
+    @Schema(
+        description = "Epoch millis of when the project's GitHub repository was archived, if available",
+        example = "1697172700000"
+    )
+    val archivedAtMillis: Long?,
 
     @Schema(
         description = "SCM stars or any other similar metric.",

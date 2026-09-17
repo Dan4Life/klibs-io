@@ -5,8 +5,11 @@ import {
     PackageSearchResults,
     ProjectDetails,
     ProjectSearchResults,
+    SearchPackagesRequest,
     SearchParams,
-    TagsStats
+    SearchProjectsRequest,
+    TagsStats,
+    toTargetGroupFilters
 } from "@/app/types";
 
 export const getProjectById = async(id: number) => {
@@ -98,24 +101,20 @@ export const getOwnerDetails = async<T>(login: string) => {
 }
 
 export const searchProjects = async(searchParams: SearchParams) => {
-    if (!searchParams.page) {
-        searchParams.page = 1;
-    }
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/projects?${toQueryParams(searchParams)}`, {
-        next: { revalidate: 600 }
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/projects?${toPageParams(searchParams)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toSearchProjectsRequest(searchParams))
     });
 
     return await res.json() as ProjectSearchResults[];
 }
 
 export const searchPackages = async(searchParams: SearchParams) => {
-    if (!searchParams.page) {
-        searchParams.page = 1;
-    }
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/packages?${toQueryParams(searchParams)}`, {
-        next: { revalidate: 600 }
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/packages?${toPageParams(searchParams)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toSearchPackagesRequest(searchParams))
     });
 
     return await res.json() as PackageSearchResults[];
@@ -154,22 +153,40 @@ export const getCategoriesWithProjects = async (): Promise<CategoriesResponse | 
     return await res.json() as CategoriesResponse;
 };
 
-export function toQueryParams(params: SearchParams): string {
-    const urlSearchParams = new URLSearchParams();
-
-    Object.entries(params).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-            value.forEach(val => {
-                urlSearchParams.append(key, val);
-            });
-        } else if (value !== undefined && value !== null) {
-            urlSearchParams.append(key, String(value));
-        }
-    });
-
-    if (!urlSearchParams.has("page")) {
-        urlSearchParams.append("page", "1");
+// Paging stays in the query string on both search endpoints; everything else moves to the body.
+function toPageParams(searchParams: SearchParams): string {
+    const pageParams = new URLSearchParams({ page: String(searchParams.page || 1) });
+    if (searchParams.limit) {
+        pageParams.set("limit", String(searchParams.limit));
     }
 
-    return urlSearchParams.toString();
+    return pageParams.toString();
+}
+
+function toSearchProjectsRequest(searchParams: SearchParams): SearchProjectsRequest {
+    const request: SearchProjectsRequest = {
+        sortBy: searchParams.sort || "relevance",
+        tags: searchParams.tags || [],
+        markers: searchParams.markers || [],
+        targetGroupFilters: toTargetGroupFilters(searchParams.platforms)
+    };
+
+    // Only the nullable fields may be omitted.
+    if (searchParams.query) request.query = searchParams.query;
+    if (searchParams.owner) request.owner = searchParams.owner;
+
+    return request;
+}
+
+// Packages have no tags or markers.
+function toSearchPackagesRequest(searchParams: SearchParams): SearchPackagesRequest {
+    const request: SearchPackagesRequest = {
+        sortBy: searchParams.sort || "relevance",
+        targetGroupFilters: toTargetGroupFilters(searchParams.platforms)
+    };
+
+    if (searchParams.query) request.query = searchParams.query;
+    if (searchParams.owner) request.owner = searchParams.owner;
+
+    return request;
 }

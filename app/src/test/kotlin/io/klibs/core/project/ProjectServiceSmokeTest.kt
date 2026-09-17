@@ -10,6 +10,7 @@ import io.klibs.core.project.repository.ProjectRepository
 import io.klibs.core.scm.repository.ScmRepositoryEntity
 import io.klibs.core.scm.repository.ScmRepositoryRepository
 import io.klibs.core.scm.repository.health.repository.ScmRepoHealthComponentsRepository
+import io.klibs.core.project.repository.ProjectHiddenRepository
 import io.klibs.core.readme.service.ReadmeService
 import io.klibs.core.project.repository.TagRepository
 import io.klibs.core.project.repository.ProjectTagRepository
@@ -61,6 +62,9 @@ class ProjectServiceSmokeTest {
     @MockitoBean
     private lateinit var scmRepoHealthComponentsRepository: ScmRepoHealthComponentsRepository
 
+    @MockitoBean
+    private lateinit var projectHiddenRepository: ProjectHiddenRepository
+
     @Test
     fun `getProjectDetailsByName returns null when project has no packages`() {
         // Arrange
@@ -83,6 +87,7 @@ class ProjectServiceSmokeTest {
             hasGhPages = false,
             hasIssues = false,
             hasWiki = false,
+            archived = false,
             hasReadme = true,
             licenseKey = null,
             licenseName = null,
@@ -136,6 +141,7 @@ class ProjectServiceSmokeTest {
             hasGhPages = false,
             hasIssues = false,
             hasWiki = false,
+            archived = false,
             hasReadme = true,
             licenseKey = null,
             licenseName = null,
@@ -201,6 +207,7 @@ class ProjectServiceSmokeTest {
             hasGhPages = false,
             hasIssues = false,
             hasWiki = false,
+            archived = false,
             hasReadme = true,
             licenseKey = null,
             licenseName = null,

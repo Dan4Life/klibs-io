@@ -6,6 +6,7 @@ import R3 from "@/app/img/kodee/r3.svg";
 
 import Image from "next/image";
 import Link from "next/link";
+import {SlackIcon} from "@rescui/icons";
 import Container from "@/app/ui/container";
 import {textCn} from "@rescui/typography";
 import styles from "./styles.module.css";
@@ -13,6 +14,8 @@ import cn from "classnames";
 
 const SUBMIT_ISSUE_URL =
     "https://github.com/JetBrains/klibs-io-issue-management/issues/new?assignees=&labels=question&projects=&template=question.md&title=";
+const REQUEST_INDEXING_URL =
+    "https://github.com/JetBrains/klibs-io-issue-management/issues/new?assignees=&labels=index-request&projects=&template=index_request.yml";
 const POM_EXAMPLE_URL =
     "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core/1.8.0/kotlinx-coroutines-core-1.8.0.pom";
 const TOOLING_METADATA_EXAMPLE_URL =
@@ -50,7 +53,7 @@ export default function Faq() {
                     <p>
                         klibs.io is a search platform and catalog for Kotlin Multiplatform (KMP) libraries. It helps
                         developers discover Kotlin libraries that work across multiple platforms such as Android, iOS,
-                        JVM, JS, and WASM. The website is designed to make library evaluation easier by bringing
+                        JVM, JS, and Wasm. The website is designed to make library evaluation easier by bringing
                         together KMP-related information in one place.
                         <br/><br/>
 
@@ -67,16 +70,14 @@ export default function Faq() {
                     <h4 id='how-do-i-add-a-project'>How can I submit my own KMP library or project to be listed?</h4>
                     <div>
                         <p>
-                            Projects are added automatically within <b>one month</b> (it is a frequency
-                            of <a href="https://repo1.maven.org/maven2/.index/">maven central public index</a> update)
-                            if they meet the following criteria:
+                            For a project to be listed on klibs.io, it must first meet the following criteria:
                         </p>
 
                         <ul>
                             <li>The project is open source and is available on GitHub.</li>
                             <li>At least one artifact is published to Maven Central.</li>
                             <li>
-                                At least one artifact is multiplatform
+                                At least one artifact is multiplatform &ndash;
                                 must have <a href={TOOLING_METADATA_EXAMPLE_URL} target="_blank"
                                              className={"link-secondary"}>kotlin-tooling-metadata.json</a>.
                             </li>
@@ -90,9 +91,17 @@ export default function Faq() {
                         </ul>
 
                         <p>
+                            All projects fulfilling the criteria are added automatically within <b>one month</b> (it is
+                            a frequency of <a href="https://repo1.maven.org/maven2/.index/">maven central public
+                            index</a> update).
                             If your project is already presented in the klibs.io,
                             then new versions should appear the <b>next day</b> after
                             they are published to Maven Central.
+                        </p>
+
+                        <p>
+                            If you prefer not to wait for the automatic sync, you can <a href={REQUEST_INDEXING_URL} target="_blank" className={"link-secondary"}>
+                                submit an indexing request</a>.
                         </p>
 
                         <p>
@@ -166,8 +175,8 @@ export default function Faq() {
                         href={'https://github.com/JetBrains/klibs-io/issues/new/choose'}>GitHub issue tracker</a>.
                     </p>
 
-                    <h4>
-                        Join the community discussion
+                    <h4 id="slack-guide" className={styles.slackGuide}>
+                        Join the community discussion <SlackIcon className={styles.slackIcon}/>
                     </h4>
                     <p>
                         If you are a member of Kotlin public Slack, <Link target="_blank"

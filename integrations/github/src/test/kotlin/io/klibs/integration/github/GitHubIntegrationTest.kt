@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.klibs.integration.github.model.ReadmeFetchResult
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import okhttp3.OkHttpClient
-import org.kohsuke.github.GitHubBuilder
 import java.time.Instant
 import kotlin.test.Ignore
 import kotlin.test.Test
@@ -13,6 +11,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import okhttp3.OkHttpClient
+import org.kohsuke.github.GitHubBuilder
 
 // TODO unignore and make it runnable under a profile/flag for IT. hits unauthorized requests limits otherwise
 @Ignore
@@ -20,15 +20,19 @@ class GitHubIntegrationTest {
 
     private val meterRegistry = SimpleMeterRegistry()
     private val githubApi = GitHubBuilder().build()
-    
+
     private val jsonMapper: ObjectMapper = jacksonObjectMapper()
+
+    private val klibsRepoName = "JetBrains/klibs-io"
 
     private val gitHubIntegration: GitHubIntegration = GitHubIntegrationKohsukeLibrary(
         meterRegistry,
         githubApi,
+        githubApi,
         OkHttpClient(),
-        GitHubIntegrationProperties(cache = GitHubIntegrationProperties.Cache()),
+        { "token test" },
         jsonMapper,
+        klibsRepoName,
     )
 
     @Test

@@ -33,6 +33,7 @@ class GitHubIndexingServiceTopicsTest {
     private val allowedProjectTagsRepository: AllowedProjectTagsRepository = mock()
     private val ownerBackoffProvider: BackoffProvider = mock()
     private val projectService: ProjectService = mock()
+    private val unreachableRepoHidingService: UnreachableRepoHidingService = mock()
     private val readmeReprocessPeriodDays: Long = 7
 
     private fun uut() = GitHubIndexingService(
@@ -45,6 +46,7 @@ class GitHubIndexingServiceTopicsTest {
         projectRepository = projectRepository,
         ownerBackoffProvider = ownerBackoffProvider,
         projectService = projectService,
+        unreachableRepoHidingService = unreachableRepoHidingService,
         readmeReprocessPeriodDays = readmeReprocessPeriodDays
     )
 
@@ -69,6 +71,7 @@ class GitHubIndexingServiceTopicsTest {
             hasGhPages = false,
             hasIssues = true,
             hasWiki = false,
+            archived = false,
             hasReadme = false,
             licenseKey = null,
             licenseName = null,
@@ -89,6 +92,7 @@ class GitHubIndexingServiceTopicsTest {
             hasGhPages = false,
             hasIssues = true,
             hasWiki = false,
+            archived = false,
             stars = 42,
             openIssues = 1,
             lastActivity = Instant.now(),

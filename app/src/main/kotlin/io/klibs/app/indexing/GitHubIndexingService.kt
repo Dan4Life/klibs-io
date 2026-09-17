@@ -41,6 +41,7 @@ class GitHubIndexingService(
     @Qualifier("ownerBackoffProvider")
     private val ownerBackoffProvider: BackoffProvider,
     private val projectService: ProjectService,
+    private val unreachableRepoHidingService: UnreachableRepoHidingService,
 
     @Value("\${klibs.readme.reprocess-period-days}")
     private val readmeReprocessPeriodDays: Long
@@ -79,10 +80,28 @@ class GitHubIndexingService(
                 repoToUpdate.name
             )
         if (ghRepo == null) {
-            // TODO disable indexing at all, remove / hide the project
-            scmRepositoryRepository.setUpdatedAt(repoToUpdate.idNotNull, Instant.now()).also { require(it) }
+            val now = Instant.now()
+            scmRepositoryRepository.setUpdatedAt(repoToUpdate.idNotNull, now).also { require(it) }
+            scmRepositoryRepository.markUnreachable(repoToUpdate.idNotNull, now)
             logger.warn("Unable to find the GH repository for update: $repoToUpdate. Skipping it.")
-            return repoToUpdate.copy(updatedAtTs = Instant.now())
+
+            val unreachableRepo = repoToUpdate.copy(
+                updatedAtTs = now,
+                unreachableSince = repoToUpdate.unreachableSince ?: now
+            )
+            unreachableRepoHidingService.hideIfUnreachableTooLong(unreachableRepo)
+            return unreachableRepo
+        }
+
+        if (repoToUpdate.unreachableSince != null) {
+            logger.info(
+                "GH repository {}/{} is reachable again, clearing unreachable_since={}",
+                repoToUpdate.ownerLogin,
+                repoToUpdate.name,
+                repoToUpdate.unreachableSince
+            )
+            scmRepositoryRepository.clearUnreachable(repoToUpdate.idNotNull)
+            unreachableRepoHidingService.unhide(repoToUpdate)
         }
 
         val ownerId = updateRepositoryOwnerIfChanged(repoToUpdate, ghRepo)
@@ -96,6 +115,11 @@ class GitHubIndexingService(
 
         val hasReadme = updateReadme(projectEntity, repoToUpdate, ghRepo, repoToUpdate.updatedAtTs)
         val license = gitHubIntegration.getLicense(ghRepo.nativeId)
+        val archivedAt = if (ghRepo.archived) {
+            gitHubIntegration.getArchivedAt(ghRepo.owner, ghRepo.name) ?: repoToUpdate.archivedAt
+        } else {
+            null
+        }
 
         val scmRepositoryEntity = repoToUpdate.copy(
             nativeId = ghRepo.nativeId,
@@ -107,6 +131,8 @@ class GitHubIndexingService(
             hasGhPages = ghRepo.hasGhPages,
             hasIssues = ghRepo.hasIssues,
             hasWiki = ghRepo.hasWiki,
+            archived = ghRepo.archived,
+            archivedAt = archivedAt,
             hasReadme = hasReadme,
             licenseKey = license?.key,
             licenseName = license?.name,
@@ -295,6 +321,7 @@ class GitHubIndexingService(
 
         val ownerEntity = indexOwner(repo.owner)
         val license = gitHubIntegration.getLicense(repo.nativeId)
+        val archivedAt = if (repo.archived) gitHubIntegration.getArchivedAt(repo.owner, repo.name) else null
 
         val persistedEntity = scmRepositoryRepository.upsert(
             ScmRepositoryEntity(
@@ -310,6 +337,8 @@ class GitHubIndexingService(
                 hasGhPages = repo.hasGhPages,
                 hasIssues = repo.hasIssues,
                 hasWiki = repo.hasWiki,
+                archived = repo.archived,
+                archivedAt = archivedAt,
                 hasReadme = false, // to be set later
                 licenseKey = license?.key,
                 licenseName = license?.name,

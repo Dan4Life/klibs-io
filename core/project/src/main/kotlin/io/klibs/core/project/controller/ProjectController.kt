@@ -54,8 +54,11 @@ class ProjectController(
             example = "10"
         )
         projectId: Int,
-    ): ProjectDetailsDTO? {
-        return projectService.getProjectDetailsById(projectId)?.toDTO()
+    ): ResponseEntity<ProjectDetailsDTO> {
+        val projectDetails = projectService.getProjectDetailsById(projectId)
+            ?: return ResponseEntity.notFound().build()
+
+        return ResponseEntity.ok(projectDetails.toDTO())
     }
 
     @Operation(summary = "Get an overview of a project's packages")
@@ -74,11 +77,13 @@ class ProjectController(
             example = "kotlinx.coroutines"
         )
         projectName: String
-    ): List<PackageOverviewResponse> {
-        return projectService.getLatestProjectPackages(
+    ): ResponseEntity<List<PackageOverviewResponse>> {
+        val packages = projectService.getLatestProjectPackages(
             ownerLogin = ownerLogin,
             projectName = projectName
-        ).map { it.toDTO() }
+        ) ?: return ResponseEntity.notFound().build()
+
+        return ResponseEntity.ok(packages.map { it.toDTO() })
     }
 
     @Operation(summary = "Get a project's README in Markdown format")
@@ -132,6 +137,7 @@ private fun ProjectDetails.toDTO(): ProjectDetailsDTO {
         name = this.name,
         description = this.description,
         platforms = this.platforms.map { it.serializableName },
+        targetGroups = this.targetGroups,
         latestReleaseVersion = this.latestReleaseVersion,
         latestReleasePublishedAtMillis = this.latestReleasePublishedAt?.toEpochMilli(),
         linkHomepage = this.getHomepageLink(),
@@ -139,6 +145,8 @@ private fun ProjectDetails.toDTO(): ProjectDetailsDTO {
         linkGitHubPages = this.getGitHubPagesLink(),
         linkIssues = this.getIssuesLink(),
         linkWiki = this.getWikiLink(),
+        archived = this.archived,
+        archivedAtMillis = this.archivedAt?.toEpochMilli(),
         scmStars = this.stars,
         dependentCount = this.dependentCount,
         createdAtMillis = this.createdAt.toEpochMilli(),

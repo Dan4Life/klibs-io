@@ -66,31 +66,61 @@ klibs:
   integration:
     maven:
       central:
-        discovery-endpoint: ${KLIBS_MAVEN_CENTRAL_DISCOVERY_ENDPOINT}
         rate-limit-capacity: ${KLIBS_MAVEN_RATE_LIMIT_CAPACITY:5}
         rate-limit-refill-amount: ${KLIBS_MAVEN_RATE_LIMIT_REFILL_AMOUNT:2}
         rate-limit-refill-period-sec: ${KLIBS_MAVEN_RATE_LIMIT_REFILL_PERIOD:5}
-        index-endpoint: ${KLIBS_MAVEN_INDEX_ENDPOINT:https://repo1.maven.org/maven2}
         index-dir: ${KLIBS_MAVEN_INDEX_CACHE_DIR:${user.dir}/cache/maven-index}
         content-endpoint: ${KLIBS_MAVEN_CONTENT_ENDPOINT:https://repo1.maven.org/maven2/}
-        content-fallback-endpoint: ${KLIBS_MAVEN_CONTENT_FALLBACK_ENDPOINT:https://search.maven.org/remotecontent?filepath=}
+      google-maven-central-mirror:
+        content-endpoint: ${KLIBS_GOOGLE_MAVEN_CENTRAL_MIRROR_CONTENT_ENDPOINT:https://maven-central.storage-download.googleapis.com/maven2/}
     github:
-      personal-access-token: ${KLIBS_GITHUB_TOKEN}
+      personal-access-token: ${KLIBS_GITHUB_TOKEN:}
+      app:
+        client-id: ${KLIBS_GITHUB_APP_CLIENT_ID:}
+        installation-id: ${KLIBS_GITHUB_APP_INSTALLATION_ID:0}
+        #NOTE: we need a PKCS8 format, GitHub by default uses PKCS1.
+        # Thus, you need to convert it before and remove the header and footer (BEGIN/END PRIVATE KEY)
+        private-key: ${KLIBS_GITHUB_APP_PRIVATE_KEY:}
       cache:
         request-cache-path: ${KLIBS_CACHE_DIR_REQUESTS:${user.dir}/cache/request-cache}
         request-cache-size-mb: ${KLIBS_CACHE_DIR_REQUEST_SIZE_MB:10}
       update-repos-per-iteration: ${KLIBS_UPDATE_GITHUB_REPOS_PER_ITERATION:3}
+      repo-unreachable-hide-after: ${KLIBS_REPO_UNREACHABLE_HIDE_AFTER:7d}
+      index-requests:
+        repository: ${KLIBS_GITHUB_REPOSITORY:}
+        request-label: ${KLIBS_GITHUB_REQUEST_LABEL:index-request}
+        processed-label: ${KLIBS_GITHUB_PROCESSED_LABEL:triaged}
+        developer-handle: ${KLIBS_GITHUB_DEVELOPER_HERO:}
+      webhook:
+        secret: ${KLIBS_GITHUB_WEBHOOK_SECRET:}
   indexing: ${KLIBS_ENABLE_INDEXING:false}
+  search:
+    opensearch:
+      uri: ${KLIBS_OPENSEARCH_URI:https://klibs-opensearch-master:9200}
+      username: ${KLIBS_OPENSEARCH_USERNAME:}
+      password: ${KLIBS_OPENSEARCH_PASSWORD:}
+      trust-all-certificates: ${KLIBS_OPENSEARCH_TRUST_ALL:false}
+      request-timeout: ${KLIBS_OPENSEARCH_REQUEST_TIMEOUT:30s}
+      slow-query-threshold: ${KLIBS_OPENSEARCH_SLOW_QUERY_THRESHOLD:1s}
   scheduling:
     process-indexing-queue:
       enabled: ${PROCESS_INDEXING_QUEUE_ENABLED:true}
     fill-version-type:
       enabled: ${FILL_VERSION_TYPE_ENABLED:true}
+    search-index-sync:
+      enabled: ${SEARCH_INDEX_SYNC_ENABLED:true}
   indexing-configuration:
     executor:
       thread-count: 2
+    retry:
+      max-attempts: ${KLIBS_INDEXING_MAX_ATTEMPTS:2}
+    reporting:
+      index-defer: ${KLIBS_REPORTING_INDEX_DEFER:10m}
+    description:
+      regen-ttl: ${KLIBS_DESCRIPTION_REGEN_TTL:90d}
     central-sonatype:
       enabled: ${KLIBS_ENABLE_INDEXING_CENTRAL_SONATYPE:false}
+      type: ${KLIBS_CENTRAL_SONATYPE_TYPE:ORIGIN}
     gmaven:
       enabled: ${KLIBS_ENABLE_INDEXING_GMAVEN:false}
       s3:

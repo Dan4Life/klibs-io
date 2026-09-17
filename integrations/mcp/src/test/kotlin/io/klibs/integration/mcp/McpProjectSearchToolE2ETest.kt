@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mapstruct.factory.Mappers
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.verify
@@ -103,7 +102,7 @@ class McpProjectSearchToolE2ETest {
         verify(mcpProjectSearchService).mcpProjectSearch(
             query = "kotlin",
             platforms = emptyList(),
-            targetFilters = emptyMap(),
+            targetFilters = emptyList(),
             maxPackagesPerProject = DEFAULT_MAX_PACKAGES_PER_PROJECT,
         )
     }
@@ -140,7 +139,7 @@ class McpProjectSearchToolE2ETest {
     class TestConfig {
 
         @Bean
-        fun mcpToolMapper(): McpToolMapper = Mappers.getMapper(McpToolMapper::class.java)
+        fun mcpToolMapper(): McpToolMapper = McpToolMapper()
 
         @Bean
         fun mcpProjectSearchTool(

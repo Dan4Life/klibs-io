@@ -15,6 +15,8 @@ interface GitHubIntegration {
 
     fun getRepository(owner: String, name: String): GitHubRepository?
 
+    fun getArchivedAt(owner: String, name: String): Instant?
+
     fun getUser(login: String): GitHubUser?
 
     fun getLicense(repositoryId: Long): GitHubLicense?
@@ -82,5 +84,8 @@ interface GitHubIntegration {
      * Returns an empty map when the repo has no default branch.
      */
     fun getCommitAuthorCounts(owner: String, name: String, since: Instant): Map<String, Int>
-}
 
+    fun addKlibsIssueLabel(number: Int, label: String)
+
+    fun addKlibsIssueComment(number: Int, body: String)
+}

@@ -1,6 +1,7 @@
 package io.klibs.core.project.repository
 
 import io.klibs.core.pckg.model.PackagePlatform
+import io.klibs.core.pckg.util.getTargetsVector
 import io.klibs.core.project.ProjectEntity
 import org.hibernate.type.SqlTypes
 import org.springframework.jdbc.core.JdbcTemplate
@@ -224,6 +225,13 @@ class ProjectRepositoryJdbc(
             .getOrNull()
     }
 
+    override fun findIdsByScmRepoId(scmRepoId: Int): List<Int> {
+        return jdbcClient.sql("SELECT id FROM project WHERE scm_repo_id = :scmRepoId")
+            .param("scmRepoId", scmRepoId)
+            .query { rs, _ -> rs.getInt("id") }
+            .list()
+    }
+
     override fun findProjectsByPackages(
         groupId: String,
         artifactId: String?
@@ -345,6 +353,23 @@ class ProjectRepositoryJdbc(
             .getOrNull()
     }
 
+    override fun findTargetsById(projectId: Int): List<String> {
+        val sql = """
+            SELECT targets_vector
+            FROM project_index
+            WHERE project_id = :projectId
+        """.trimIndent()
+
+        return jdbcClient.sql(sql)
+            .param("projectId", projectId)
+            .query { rs, _ ->
+                rs.getTargetsVector("targets_vector")
+            }
+            .optional()
+            .getOrNull()
+            ?: emptyList()
+    }
+
     override fun recomputeAllDependentCounts() {
         val sql = """
             WITH dependent_counts AS (
@@ -373,6 +398,7 @@ class ProjectRepositoryJdbc(
             FROM project p
             JOIN scm_repo sr ON sr.id = p.scm_repo_id
             JOIN scm_owner ON p.owner_id = scm_owner.id
+            WHERE NOT EXISTS (SELECT 1 FROM project_hidden ph WHERE ph.project_id = p.id)
             ORDER BY p.id
         """.trimIndent()
 

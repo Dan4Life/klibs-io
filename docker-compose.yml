@@ -21,9 +21,29 @@ services:
       SERVICES: s3
       DEFAULT_REGION: eu-west-1
     volumes:
-      - ./localstack-data:/var/lib/localstack
+      - ./docker-compose-volumes/localstack-data:/var/lib/localstack
     networks:
       - klibs-net
+
+  opensearch:
+    image: opensearchproject/opensearch:3.7.0
+    container_name: klibs-opensearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=OpenSearch!ocalPassw0rd
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - ./docker-compose-volumes/opensearch-data:/usr/share/opensearch/data
+    networks:
+      - klibs-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail -k -u admin:OpenSearch!ocalPassw0rd https://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   s3-init:
     image: amazon/aws-cli:latest
@@ -44,6 +64,7 @@ services:
 
 volumes:
   localstack-data:
+  opensearch-data:
 
 networks:
   klibs-net:

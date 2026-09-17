@@ -32,7 +32,7 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
     private lateinit var s3ReadmeService: S3ReadmeCRUDService
 
     @Test
-    @Sql(scripts = ["classpath:sql/GitHubIndexingServiceReadmeUpdateTest/insert-readme-for-reprocessing.sql"])
+    @Sql(scripts = ["classpath:/sql/GitHubIndexingServiceReadmeUpdateTest/insert-readme-for-reprocessing.sql"])
     fun `updateReadme should reprocess when NotModified but lastProcessedAt is older than 7 days`() {
         val repoId = 368
         val projectId = 10001
@@ -48,7 +48,8 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
             createdAt = repo.createdTs,
             hasGhPages = repo.hasGhPages,
             hasIssues = repo.hasIssues,
-            hasWiki = repo.hasWiki
+            hasWiki = repo.hasWiki,
+            archived = repo.archived
         )
 
         whenever(gitHubIntegration.getRepository(repo.nativeId)).thenReturn(ghRepo)
@@ -69,7 +70,7 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
     }
 
     @Test
-    @Sql(scripts = ["classpath:sql/GitHubIndexingServiceReadmeUpdateTest/insert-readme-not-for-reprocessing.sql"])
+    @Sql(scripts = ["classpath:/sql/GitHubIndexingServiceReadmeUpdateTest/insert-readme-not-for-reprocessing.sql"])
     fun `updateReadme should only update lastSyncedAt when NotModified and recently processed`() {
         val repoId = 368
         val projectId = 10001
@@ -85,7 +86,8 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
             createdAt = repo.createdTs,
             hasGhPages = repo.hasGhPages,
             hasIssues = repo.hasIssues,
-            hasWiki = repo.hasWiki
+            hasWiki = repo.hasWiki,
+            archived = repo.archived
         )
 
         whenever(gitHubIntegration.getRepository(repo.nativeId)).thenReturn(ghRepo)
@@ -104,7 +106,7 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
     }
 
     @Test
-    @Sql(scripts = ["classpath:sql/GitHubIndexingServiceReadmeUpdateTest/insert-readme-not-for-reprocessing.sql"])
+    @Sql(scripts = ["classpath:/sql/GitHubIndexingServiceReadmeUpdateTest/insert-readme-not-for-reprocessing.sql"])
     fun `updateReadme should update readme metadata when content of readme changed`() {
         val repoId = 368
         val projectId = 10001
@@ -120,7 +122,8 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
             createdAt = repo.createdTs,
             hasGhPages = repo.hasGhPages,
             hasIssues = repo.hasIssues,
-            hasWiki = repo.hasWiki
+            hasWiki = repo.hasWiki,
+            archived = repo.archived
         )
 
         whenever(gitHubIntegration.getRepository(repo.nativeId)).thenReturn(ghRepo)
@@ -142,7 +145,7 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
     }
 
     @Test
-    @Sql(scripts = ["classpath:sql/GitHubIndexingServiceReadmeUpdateTest/insert-repo-without-readme.sql"])
+    @Sql(scripts = ["classpath:/sql/GitHubIndexingServiceReadmeUpdateTest/insert-repo-without-readme.sql"])
     fun `updateReadme should create readme metadata when no readme metadata`() {
         val repoId = 368
         val projectId = 10001
@@ -160,7 +163,8 @@ class GitHubIndexingServiceReadmeUpdateTest : BaseUnitWithDbLayerTest() {
             createdAt = repo.createdTs,
             hasGhPages = repo.hasGhPages,
             hasIssues = repo.hasIssues,
-            hasWiki = repo.hasWiki
+            hasWiki = repo.hasWiki,
+            archived = repo.archived
         )
 
         whenever(gitHubIntegration.getRepository(repo.nativeId)).thenReturn(ghRepo)

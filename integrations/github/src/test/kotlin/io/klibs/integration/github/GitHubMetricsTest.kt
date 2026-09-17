@@ -2,6 +2,10 @@ package io.klibs.integration.github
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import java.util.concurrent.TimeUnit
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import okhttp3.OkHttpClient
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -9,10 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.kohsuke.github.GitHub
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
-import java.util.concurrent.TimeUnit
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * Per-HTTP-request counting (`klibs.github.requests`) lives on an OkHttp interceptor and is
@@ -29,6 +29,9 @@ class GitHubMetricsTest {
     private lateinit var githubApi: GitHub
 
     private lateinit var gitHubIntegration: GitHubIntegration
+    private val klibsRepoName = "JetBrains/klibs-io"
+    private val processedLabel = "triaged"
+    private val batchSize = 5
 
     @BeforeEach
     fun setUp() {
@@ -37,11 +40,11 @@ class GitHubMetricsTest {
         gitHubIntegration = GitHubIntegrationKohsukeLibrary(
             meterRegistry,
             githubApi,
+            githubApi,
             OkHttpClient(),
-            GitHubIntegrationProperties(
-                cache = GitHubIntegrationProperties.Cache(),
-            ),
+            { "token test_token" },
             jacksonObjectMapper(),
+            klibsRepoName,
         )
     }
 

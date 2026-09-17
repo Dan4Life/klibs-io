@@ -9,7 +9,7 @@ export interface ProjectSearchResults {
 	licenseName: string;
 	latestReleaseVersion: string;
 	latestReleasePublishedAtMillis: number;
-	platforms: Platform[];
+	targetGroups: TargetGroups;
 	tags: string[];
 	markers: string[];
 }
@@ -26,6 +26,8 @@ export interface ProjectDetails extends ProjectSearchResults {
 	linkScm: string;
 	linkGitHubPages: string;
 	linkWiki?: string;
+	archived: boolean;
+	archivedAtMillis: null | number;
 	updatedAtMillis: number;
 }
 
@@ -40,8 +42,7 @@ export interface PackageSearchResults {
 	licenseName: string;
 	latestVersion: string;
 	releaseTsMillis: number;
-	platforms: Platform[];
-	targets: string[];
+	targetGroups: TargetGroups;
 }
 
 export function getProjectLink(projectOverview: ProjectSearchResults) {
@@ -83,27 +84,13 @@ export const platformOrder = [
 	Platform.common,
 ];
 
-export const sortedPlatforms = (platforms: Platform[]) => {
-    const filteredCommonPlatform = platforms.filter((platform) => platform !== Platform.common);
-	return filteredCommonPlatform.sort((a, b) => {
-		return platformOrder.indexOf(a) - platformOrder.indexOf(b);
-	});
-}
-
-type Target = string;// to many variants, i skip it for now
-
-interface PackageTarget {
-	target: Target;
-	platform: Platform;
-}
-
 export interface PackageOverview {
 	id: number;
 	groupId: string;
 	artifactId: string;
 	version: string;
 	releasedAtMillis: number;
-	targets: PackageTarget[];
+	targetGroups: TargetGroups;
 	description: null | string;
 }
 
@@ -134,80 +121,119 @@ export function getPackageCoordinates(packageOverview: PackageOverview) {
 	return `${packageOverview.groupId}:${packageOverview.artifactId}:${packageOverview.version}`;
 }
 
-export function getUniquePlatforms(packageOverview: PackageOverview): Platform[] {
-	const platforms = packageOverview.targets.map(target => target.platform);
-	const uniquePlatforms = Array.from(new Set(platforms));
-
-	return sortedPlatforms(uniquePlatforms);
+export function hasTargetGroups(packageOverview: PackageOverview) {
+	return !!packageOverview.targetGroups && Object.keys(packageOverview.targetGroups).length > 0;
 }
 
-export function toTargetGroups(targets: PackageTarget[], native: boolean = false) {
-	const filteredTargets = (native ? targets.filter(target => target.platform === Platform.native) : targets).filter(target => target.platform !== Platform.common);
-	const grouped = filteredTargets.reduce((acc, curr) => {
-		const platformName = getPlatformName(curr.platform);
-		const target = curr.target;
-		let existingPlatform = acc.find((item) => item.platformName === platformName);
-		let groupId = "";
-		const targetId = target;
+export interface TargetGroupsByPlatform {
+	platformId: Platform;
+	platformName: string;
+	groups: { groupId: string, targets: string[] }[];
+}
 
-		if (curr.platform === Platform.native && target.includes('_')) {
-			const targetPrefix = targetId.split(/_(.*)/)[0];
-			groupId = mapNativeTargetToGroupName(targetPrefix);
+// Groups the target groups by the platform they belong to, for the targets table.
+export function toTargetGroupsByPlatform(
+	targetGroups: TargetGroups,
+	native: boolean = false,
+	includeCommon: boolean = false,
+): TargetGroupsByPlatform[] {
+	const grouped = getSortedTargetGroups(targetGroups).reduce((acc, group) => {
+		const platformId = getTargetGroupPlatform(group);
+
+		if (!includeCommon && platformId === Platform.common) return acc;
+		if (native && platformId !== Platform.native) return acc;
+
+		let platform = acc.find(item => item.platformId === platformId);
+
+		if (!platform) {
+			platform = {platformId, platformName: getPlatformName(platformId), groups: []};
+			acc.push(platform);
 		}
 
-		if (!existingPlatform) {
-			existingPlatform = {
-				platformId: curr.platform,
-				platformName,
-				groups: []
-			}
-
-			acc.push(existingPlatform);
-		}
-
-		let existingGroup = existingPlatform.groups.find(group => group.groupId === groupId);
-
-		if (!existingGroup) {
-			existingGroup = {
-				groupId: groupId,
-				targets: [],
-			}
-
-			existingPlatform.groups.push(existingGroup);
-		}
-
-		existingGroup.targets.push(targetId);
+		platform.groups.push({groupId: getTargetGroupName(group), targets: targetGroups[group]});
 
 		return acc;
-	}, [] as { platformId: Platform; platformName: string; groups: {groupId: string, targets: string[]}[] }[]);
+	}, [] as TargetGroupsByPlatform[]);
 
-	return grouped.sort((a, b) => {
-		return platformOrder.indexOf(a.platformId as Platform) - platformOrder.indexOf(b.platformId as Platform);
-	});
+	return grouped.sort((a, b) => platformOrder.indexOf(a.platformId) - platformOrder.indexOf(b.platformId));
 }
 
+// Backend TargetGroup name -> its targets (JVM versions for JVM/AndroidJvm, target names otherwise).
+export type TargetGroups = Record<string, string[]>;
 
-export function mapNativeTargetToGroupName(prefix: string) {
-	switch (prefix) {
-		case 'android':
-			return 'Android Native';
-		case 'ios':
-			return 'iOS';
-		case 'linux':
-			return 'Linux';
-		case 'macos':
-			return 'macOS';
-		case 'mingw':
-			return 'Windows';
-		case 'tvos':
-			return 'tvOS';
-		case 'watchos':
-			return 'watchOS';
-		case 'wasm':
-			return 'Wasm';
-		default:
-			return 'Other';
-	}
+// Display order and labels for the backend TargetGroup names.
+const targetGroupNames: Record<string, string> = {
+	IOS: 'iOS',
+	AndroidJvm: 'Android',
+	AndroidNative: 'Android Native',
+	JVM: 'JVM',
+	Wasm: 'Wasm',
+	JavaScript: 'JS',
+	MacOS: 'macOS',
+	WatchOS: 'watchOS',
+	TvOS: 'tvOS',
+	Linux: 'Linux',
+	Windows: 'Windows',
+	Unknown: 'Other'
+};
+
+const targetGroupOrder = Object.keys(targetGroupNames);
+
+// Groups unknown to the map keep their raw name and go last.
+const targetGroupIndex = (group: string) => {
+	const index = targetGroupOrder.indexOf(group);
+	return index === -1 ? targetGroupOrder.length : index;
+};
+
+// Platform each group belongs to, used for the badge colors.
+const targetGroupPlatforms: Record<string, Platform> = {
+	AndroidJvm: Platform.androidJvm,
+	JVM: Platform.jvm,
+	AndroidNative: Platform.native,
+	IOS: Platform.native,
+	MacOS: Platform.native,
+	WatchOS: Platform.native,
+	TvOS: Platform.native,
+	Linux: Platform.native,
+	Windows: Platform.native,
+	Wasm: Platform.wasm,
+	JavaScript: Platform.js,
+	Unknown: Platform.common,
+};
+
+export const getTargetGroupName = (group: string) => targetGroupNames[group] || group;
+
+export const getTargetGroupPlatform = (group: string) => targetGroupPlatforms[group] || Platform.common;
+
+export function getSortedTargetGroups(targetGroups: TargetGroups): string[] {
+	return Object.keys(targetGroups).sort((a, b) => targetGroupIndex(a) - targetGroupIndex(b));
+}
+
+export function getTargetGroupNames(targetGroups: TargetGroups): string[] {
+	return getSortedTargetGroups(targetGroups).map(getTargetGroupName);
+}
+
+// JVM targets are version strings ('1.8', '17'), the legacy 1.x ones sort below 9 numerically.
+export function latestJvmTarget(targets: string[] = []): string | undefined {
+	return targets
+		.filter(target => !isNaN(parseFloat(target)))
+		.reduce<string | undefined>(
+			(latest, target) => !latest || parseFloat(target) > parseFloat(latest) ? target : latest,
+			undefined,
+		);
+}
+
+// Package card labels: same as getTargetGroupNames, except JVM also carries its latest version.
+// Android keeps a plain label on purpose, so this is not a drop-in for the project card.
+export function getPackageTargetGroupLabels(targetGroups: TargetGroups): string[] {
+	return getSortedTargetGroups(targetGroups).map(group => {
+		const name = getTargetGroupName(group);
+
+		if (group !== 'JVM') return name;
+
+		const version = latestJvmTarget(targetGroups[group]);
+		return version ? `${name} ${version}` : name;
+	});
 }
 
 export function hasAnyLink(projectOverview: ProjectDetails): boolean {
@@ -267,9 +293,57 @@ export type SearchSort = 'most-stars' | 'relevance'| 'most-dependents';
 
 export type SearchMode = 'projects' | 'packages';
 
+export type TargetGroupFilter = 'ios' | 'android' | 'jvm' | 'js' | 'wasm' | 'other';
+
+export const targetGroupFilters: TargetGroupFilter[] = ['ios', 'android', 'jvm', 'js', 'wasm', 'other'];
+
+const targetGroupFilterNames: Record<TargetGroupFilter, string> = {
+	ios: 'iOS',
+	android: 'Android',
+	jvm: 'JVM',
+	js: 'JS',
+	wasm: 'Wasm',
+	other: 'Other',
+};
+
+export const getTargetGroupFilterName = (filter: TargetGroupFilter) => targetGroupFilterNames[filter];
+
+// Each entry maps backend TargetGroup names to target names, matching
+// List<Map<TargetGroup, Set<String>>> on the backend.
+export type TargetGroupFilters = Record<string, string[]>[];
+
+// Backend TargetGroup enum names, see core/package/.../model/TargetGroups.kt
+// `Unknown` is rejected by the backend validator, so it is not filterable.
+const targetGroupsByFilter: Record<TargetGroupFilter, string[]> = {
+	ios: ['IOS'],
+	android: ['AndroidNative', 'AndroidJvm'],
+	jvm: ['JVM'],
+	js: ['JavaScript'],
+	wasm: ['Wasm'],
+	other: ['Linux', 'MacOS', 'Windows', 'TvOS', 'WatchOS'],
+};
+
+// Groups inside one entry are OR-ed, entries in the list are AND-ed.
+// An empty target list means "any target in this group".
+export function toTargetGroupFilters(filters: TargetGroupFilter[] = []): TargetGroupFilters {
+	return filters
+		.map(filter => targetGroupsByFilter[filter] ?? [])
+		.filter(groups => groups.length > 0)
+		.map(groups => Object.fromEntries(groups.map(group => [group, [] as string[]])));
+}
+
+export function parseTargetGroupFilters(values: string[]): TargetGroupFilter[] {
+	const legacyAliases: Record<string, TargetGroupFilter> = {androidJvm: 'android'};
+	const parsed = values
+		.map(value => targetGroupFilters.find(filter => filter === value) ?? legacyAliases[value])
+		.filter((filter): filter is TargetGroupFilter => !!filter);
+
+	return Array.from(new Set(parsed));
+}
+
 export interface SearchParams {
 	query?: string;
-	platforms?: Platform[];
+	platforms?: TargetGroupFilter[];
 	sort?: SearchSort;
 	page: number;
 	limit?: number;
@@ -277,6 +351,24 @@ export interface SearchParams {
 	tags?: string[];
 	mode?: SearchMode;
 	markers?: string[];
+}
+
+// The non-nullable fields below are non-nullable on the backend and have no effective
+// defaults there: omitting one, or sending null, is rejected with a 400.
+export interface SearchProjectsRequest {
+	query?: string;
+	owner?: string;
+	sortBy: SearchSort;
+	tags: string[];
+	markers: string[];
+	targetGroupFilters: TargetGroupFilters;
+}
+
+export interface SearchPackagesRequest {
+	query?: string;
+	owner?: string;
+	sortBy: SearchSort;
+	targetGroupFilters: TargetGroupFilters;
 }
 
 export interface TagsStats {

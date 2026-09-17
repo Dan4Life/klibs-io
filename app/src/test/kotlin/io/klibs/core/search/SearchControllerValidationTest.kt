@@ -71,4 +71,52 @@ class SearchControllerValidationTest : SmokeTestBase() {
             }
         }
     }
+
+    @Test
+    @DisplayName("Should return 400 Bad Request when page exceeds 50")
+    fun testPageAboveCap() {
+        mockMvc.get("/search/projects") {
+            param("page", "51")
+            param("limit", "10")
+        }.andExpect {
+            status { isBadRequest() }
+        }
+    }
+
+    @Test
+    @DisplayName("Should return 400 Bad Request when page exceeds 50 in POST request")
+    fun testPageAboveCapInPostRequest() {
+        mockMvc.post("/search/projects") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(SearchProjectsRequest())
+            param("page", "51")
+            param("limit", "10")
+        }.andExpect {
+            status { isBadRequest() }
+        }
+    }
+
+    @Test
+    @DisplayName("Should accept page 50")
+    fun testPageAtCap() {
+        mockMvc.get("/search/projects") {
+            param("page", "50")
+            param("limit", "10")
+        }.andExpect {
+            status { isOk() }
+        }
+    }
+
+    @Test
+    @DisplayName("Should return 400 Bad Request when page is 0 in POST request")
+    fun testPageBelowFirstInPostRequest() {
+        mockMvc.post("/search/projects") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(SearchProjectsRequest())
+            param("page", "0")
+            param("limit", "10")
+        }.andExpect {
+            status { isBadRequest() }
+        }
+    }
 }

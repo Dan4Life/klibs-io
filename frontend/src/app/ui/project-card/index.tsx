@@ -2,7 +2,7 @@ import { Fragment, ReactNode, useMemo } from "react";
 import Link from "next/link";
 import cn from 'classnames';
 import { isFeaturedProject, isGrantWinner, kFormatter } from "@/app/types";
-import { getPlatformName, getProjectLink, ProjectSearchResults, sortedPlatforms } from "@/app/types";
+import { getProjectLink, getTargetGroupNames, ProjectSearchResults } from "@/app/types";
 import { cardCn } from '@rescui/card';
 import { textCn } from '@rescui/typography';
 import { StarIcon, ReadIcon, WinIcon, RocketIcon } from '@rescui/icons';
@@ -57,6 +57,8 @@ export default function ProjectCard({ featuredProject, className, search }: Proj
 
 	const showGrantWinner = featuredProject && isGrantWinner(featuredProject);
 	const showFeaturedProject = featuredProject && isFeaturedProject(featuredProject);
+
+	const targetGroups = featuredProject?.targetGroups ? getTargetGroupNames(featuredProject.targetGroups) : [];
 
 	return (
 		// Solution for <Link> href error: https://stackoverflow.com/questions/66821351/nextjs-error-message-failed-prop-type-the-prop-href-expects-a-string-or-o
@@ -127,28 +129,25 @@ export default function ProjectCard({ featuredProject, className, search }: Proj
 						</div>
 
 						{/*Description*/}
-						{/*To-do: Truncation for description*/}
 						<p className={cn(textCn('rs-text-3', { hardness: 'hard' }), styles.cardDescription)}>
 							<SearchTextWrap search={search}>{featuredProject.description}</SearchTextWrap>
 						</p>
 
 						{/*Tags*/}
-						{hasTags && <div className={styles.tagsRow}>
-							<p className={cn(textCn('rs-text-3'))}
-								title={'#' + featuredProject.tags?.join(', #')}>
-								{tagsContent}
-							</p>
-						</div>}
+						{hasTags && <p className={cn(textCn('rs-text-3'), styles.tagsRow)}
+							title={'#' + featuredProject.tags?.join(', #')}>
+							{tagsContent}
+						</p>}
 					</div>
 
 					{/*Footer section*/}
 					<div className={styles.footerWrapper}>
 
-						{/*Platforms*/}
+						{/*Target groups*/}
 						<div className={styles.footerPlatforms}>
-							{sortedPlatforms(featuredProject.platforms).map(platform => (
-								<PlatformTag key={platform} className={styles.platformTag}>
-									{getPlatformName(platform)}
+							{targetGroups.map(group => (
+								<PlatformTag key={group}>
+									{group}
 								</PlatformTag>
 							))}
 						</div>

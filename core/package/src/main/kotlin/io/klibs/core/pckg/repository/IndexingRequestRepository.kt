@@ -18,14 +18,13 @@ interface IndexingRequestRepository : CrudRepository<IndexingRequestEntity, Long
         WHERE id = :id and status != :#{#newStatus.name()}
         RETURNING *
     """, nativeQuery = true)
-    
     fun updateStatus(id: Long, newStatus: IndexingRequestStatus): IndexingRequestEntity?
 
     @Query(value = """
         SELECT req.*
         FROM package_index_request req
         WHERE req.status = 'PENDING'
-          AND req.failed_attempts < 2
+          AND req.failed_attempts < :maxAttempts
           AND NOT EXISTS (
               SELECT 1
               FROM banned_packages bp
@@ -35,7 +34,7 @@ interface IndexingRequestRepository : CrudRepository<IndexingRequestEntity, Long
         ORDER BY req.released_ts DESC NULLS FIRST
         LIMIT 1
     """, nativeQuery = true)
-    fun findFirstForIndexing(): IndexingRequestEntity?
+    fun findFirstForIndexing(@Param("maxAttempts") maxAttempts: Int): IndexingRequestEntity?
 
     @Modifying
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -49,19 +48,9 @@ interface IndexingRequestRepository : CrudRepository<IndexingRequestEntity, Long
     """, nativeQuery = true)
     fun markAsFailed(@Param("id") id: Long, @Param("errorMessage") errorMessage: String?)
 
-    @Modifying
-    @Transactional
-    @Query(value = """
-        DELETE
-        FROM package_index_request req
-        WHERE req.reindex = false
-          AND EXISTS (
-              SELECT true
-              FROM package p
-              WHERE req.group_id = p.group_id
-                AND req.artifact_id = p.artifact_id
-                AND req.version = p.version
-          )
-    """, nativeQuery = true)
-    fun removeRepeating(): Int
+    fun findByGroupIdAndArtifactIdAndVersion(
+        groupId: String,
+        artifactId: String,
+        version: String
+    ): IndexingRequestEntity?
 }

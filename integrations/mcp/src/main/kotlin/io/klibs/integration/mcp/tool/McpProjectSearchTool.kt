@@ -2,6 +2,7 @@ package io.klibs.integration.mcp.tool
 
 import io.klibs.core.pckg.model.PackagePlatform
 import io.klibs.core.pckg.model.TargetGroup
+import io.klibs.core.search.dto.validation.validateTargetGroupFilters
 import io.klibs.integration.mcp.dto.api.ProjectSearchResponse
 import io.klibs.integration.mcp.mapper.McpToolMapper
 import io.klibs.integration.mcp.service.DEFAULT_MAX_PACKAGES_PER_PROJECT
@@ -23,8 +24,8 @@ class McpProjectSearchTool(
         description = """Searches for Kotlin Multiplatform projects by keywords, platforms/targets, and kotlin version.
             Request arguments additional information:
               Available groups and their targets:
-              - JVM: 1.6, 1.7, 1.8, 9-24
-              - AndroidJvm: 1.6, 1.7, 1.8, 9-24
+              - JVM: 1.6, 1.7, 1.8, 9-25+
+              - AndroidJvm: 1.6, 1.7, 1.8, 9-25+
               - IOS: ios_arm32, ios_arm64, ios_x64, ios_simulator_arm64
               - MacOS: macos_arm64, macos_x64
               - Linux: linux_arm32_hfp, linux_arm64, linux_mips32, linux_mipsel32, linux_x64
@@ -55,13 +56,15 @@ class McpProjectSearchTool(
         )
         platforms: List<String>? = emptyList(),
         @ToolParam(
-            description = "Map of target group to specific targets. " +
+            description = "List of target-group maps. Groups within the same map are combined with OR; " +
+                    "separate maps in the list are combined with AND. " +
                     "Keys are target groups (e.g. 'JVM', 'IOS'), " +
                     "values are sets of specific targets within that group. " +
-                    "Empty set means any target in the group. Example: {\"JVM\": [\"11\", \"17\"], \"IOS\": []}.",
+                    "Empty set means any target in the group. " +
+                    "Example: [{\"JVM\": [\"11\", \"17\"]}, {\"IOS\": [], \"TvOS\": []}].",
             required = false
         )
-        targetFilters: Map<TargetGroup, Set<String>>? = emptyMap(),
+        targetGroupFilters: List<Map<TargetGroup, Set<String>>>? = emptyList(),
         @ToolParam(
             description = "Maximum number of packages to return per project (newest first). Defaults to 10. " +
                     "Increase only when a project's totalPackages exceeds the returned count and you need more artifacts.",
@@ -69,14 +72,16 @@ class McpProjectSearchTool(
         )
         maxPackagesPerProject: Int? = null,
     ): ProjectSearchResponse {
-        logger.info("MCP: Searching for projects with query: $query, platforms: $platforms, targetFilters: $targetFilters")
+        logger.info("MCP: Searching for projects with query: $query, platforms: $platforms, targetFilters: $targetGroupFilters")
+
+        validateTargetGroupFilters(targetGroupFilters)?.let { throw IllegalArgumentException(it) }
 
         val parsedPlatforms =
             platforms?.map { PackagePlatform.findBySerializableName(it) }.orEmpty()
 
         val maxPackages = maxPackagesPerProject ?: DEFAULT_MAX_PACKAGES_PER_PROJECT
 
-        return mcpProjectSearchService.mcpProjectSearch(query, parsedPlatforms, targetFilters.orEmpty(), maxPackages)
+        return mcpProjectSearchService.mcpProjectSearch(query, parsedPlatforms, targetGroupFilters.orEmpty(), maxPackages)
             .let { mcpToolMapper.mapToProjectSearchResponse(it) }
     }
 }
