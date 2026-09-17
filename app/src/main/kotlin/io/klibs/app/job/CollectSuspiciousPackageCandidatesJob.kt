@@ -16,7 +16,7 @@ class CollectSuspiciousPackageCandidatesJob(
 ) {
 
     @Scheduled(initialDelay = 0, fixedRate = 1, timeUnit = TimeUnit.DAYS)
-    @SchedulerLock(name = "collectSuspiciousPackageCandidatesLock")
+    @SchedulerLock(name = "collectSuspiciousPackageCandidatesLock", lockAtMostFor = "10m")
     fun collectCandidates() {
         LockAssert.assertLocked()
         val inserted = suspiciousPackageCandidateRepository.insertMissingCandidates()

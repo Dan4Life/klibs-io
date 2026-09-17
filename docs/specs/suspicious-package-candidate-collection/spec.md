@@ -17,7 +17,7 @@ Affected: klibs.io maintainers reviewing possible impersonation, and the later b
 - **Independent test:** a DB-integration test seeds `package` rows forming a conflict, runs the recompute, and asserts the entry rows exist with `PENDING`.
 
 ### Scenario 2 — Reviewer decisions survive re-runs (P1)
-- **Given:** a reviewer has set a candidate row to `RESOLVED` or `IGNORED`.
+- **Given:** a reviewer has set a candidate row to `RESOLVED`.
 - **When:** the collection job runs again while the entry still conflicts.
 - **Then:** the row is untouched — `status` is not reset to `PENDING`, `notes` is not cleared, and no duplicate row is created.
 - **Independent test:** a DB-integration test marks a row `RESOLVED`, re-runs the recompute, and asserts the status is still `RESOLVED` with exactly one row for that key.
@@ -32,10 +32,10 @@ Affected: klibs.io maintainers reviewing possible impersonation, and the later b
 - **FR-002:** Each row MUST persist its full coordinate (`project_id`, `artifact_id`, `group_id`) as readable columns, so a reviewer can identify an entry and pull every entry that shares its `(project_id, artifact_id)` group.
 - **FR-003:** Each entry within one conflict MUST hold an independent `status` and `notes`. Setting one entry's `status` MUST NOT change a sibling entry's `status` or `notes`.
 - **FR-004:** For every `(project_id, artifact_id)` conflict, the system MUST record all of its entries; it MUST NOT pre-filter candidates by any signal (dormancy, owner mismatch, etc.). Triage is manual.
-- **FR-005:** The system MUST provide a nullable free-text `notes` field for reviewers to record why a row was moved to `RESOLVED` or `IGNORED`. The collection job populates the table but MUST NOT write or overwrite `notes`.
+- **FR-005:** The system MUST provide a nullable free-text `notes` field for reviewers to record why a row was moved to `RESOLVED`. The collection job populates the table but MUST NOT write or overwrite `notes`.
 - **FR-006:** A newly detected entry MUST be recorded with `status = PENDING` and a `detected_at` timestamp.
-- **FR-007:** `status` MUST be one of `PENDING`, `RESOLVED`, `IGNORED`, meaning: `PENDING` — nobody has looked at this entry yet; `RESOLVED` — a reviewer looked and reached a determination, either to ban the entry or to keep it; `IGNORED` — a reviewer looked, found no conclusive evidence either way, and the entry is therefore kept. Both mean the entry has been reviewed. Only `RESOLVED` can lead to a ban: an inconclusive review leaves the entry in place, which is the safe default.
-- **FR-008:** A reviewer-set `status` and `notes` MUST persist across subsequent collection runs; a re-run MUST NOT revert a `RESOLVED` or `IGNORED` row to `PENDING` or clear its `notes`.
+- **FR-007:** `status` MUST be one of `PENDING`, `RESOLVED`, meaning: `PENDING` — nobody has looked at this entry yet; `RESOLVED` — a reviewer looked and reached a determination, either to ban the entry or to keep it.
+- **FR-008:** A reviewer-set `status` and `notes` MUST persist across subsequent collection runs; a re-run MUST NOT revert a `RESOLVED` row to `PENDING` or clear its `notes`.
 - **FR-009:** A collection run MUST NOT create duplicate rows for the same `(project_id, artifact_id, group_id)` entry.
 - **FR-010:** When a previously recorded entry is no longer detected as conflicting, the system MUST keep its existing row unchanged; it MUST NOT delete rows that drop out of detection.
 - **FR-011:** The system MUST NOT record an entry whose `(project_id, artifact_id)` is published under a single `groupId`, however many versions that entry has. Detection counts distinct `groupId`s, never `package` rows.
@@ -58,7 +58,7 @@ Affected: klibs.io maintainers reviewing possible impersonation, and the later b
 ## 7. Klibs.io technical surface
 - **Modules touched:** `core/package` gets a new candidate `@Entity`, its `@IdClass`, and a Spring Data repository holding the collection statement. This is the JPA module that owns the `package` table the statement scans. `app` gets one new scheduled job class, modelled on `RefreshDependentCountJob`, that calls the repository. No collector service: the collection body is a single statement, so the job calls the repository directly. The indexing pipeline is not modified.
 - **Database:** one additive migration in `db/migration/2026-Q3/`, registered in `db.changelog-master.yml`. The table ships empty and is populated by the job; its first run seeds all pre-existing conflicts.
-  1. Candidate table (working name `suspicious_package_candidate`). Fields: `project_id` (FK to `project`, `ON DELETE NO ACTION` as `package_project_id_fkey` already does, so a reviewer's record can never be cascaded away; `project_tags` uses `CASCADE`, which would contradict FR-010); `artifact_id`; `group_id`; `status` (`PENDING`/`RESOLVED`/`IGNORED`); `notes` (nullable, reviewer-authored); `detected_at`. Identity is the natural key `(project_id, artifact_id, group_id)` — no surrogate id and no sequence. Group key `(project_id, artifact_id)`. Exact column types and index choices are plan-level.
+  1. Candidate table (working name `suspicious_package_candidate`). Fields: `project_id` (FK to `project`, `ON DELETE NO ACTION`, as the FK from `package` to `project` already does, so a reviewer's record can never be cascaded away; `project_tags` uses `CASCADE`, which would contradict FR-010); `artifact_id`; `group_id`; `status` (`PENDING`/`RESOLVED`); `notes` (nullable, reviewer-authored); `detected_at`. Identity is the natural key `(project_id, artifact_id, group_id)` — no surrogate id and no sequence. Group key `(project_id, artifact_id)`. Exact column types and index choices are plan-level.
 - **Persistence style:** JPA, per CLAUDE.md ("JPA-first, avoid JDBC in new code"). The candidate table is a `@Entity` with an `@IdClass` composite identifier and a Spring Data repository; `project_id` is a plain column with the FK enforced in the migration, not a JPA `@ManyToOne`, so the entity adds no `core/package` → `core/project` dependency. Collection is a single `@Modifying @Query`, following `MavenArtifactRepository.saveIfAbsent` in this same module, which already writes `INSERT … ON CONFLICT … DO NOTHING` as HQL rather than native SQL — Hibernate has supported the `on conflict` clause since 6.5, and this project is on 7.2.7. Every in-repo precedent is `INSERT … VALUES`, so whether the insert-select form also parses as HQL or needs `nativeQuery = true` is a plan-level question to settle when the statement is written. The 7.2.7 HQL grammar carries the conflict clause on the insert statement itself, whether the source is a values list or a query expression, so the likelier obstacle is the two-level `SELECT` (§13) rather than the conflict clause. Either way it stays inside the Spring Data repository and is not JDBC.
 - **Search and materialized views:** none. Independent of `project_index` and `package_index`.
 - **External integrations:** none.
@@ -93,9 +93,9 @@ Affected: klibs.io maintainers reviewing possible impersonation, and the later b
 
 ## 9. Key entities (only if data model changes)
 - **`SuspiciousPackageCandidate`** (working name): one row per entry of a conflict.
-  - **Key fields:** `projectId`, `artifactId`, `groupId` (together the `@IdClass` identity); `status` (`PENDING`/`RESOLVED`/`IGNORED`); `notes` (nullable, reviewer-authored); `detectedAt`.
+  - **Key fields:** `projectId`, `artifactId`, `groupId` (together the `@IdClass` identity); `status` (`PENDING`/`RESOLVED`); `notes` (nullable, reviewer-authored); `detectedAt`.
   - **Relationships:** many candidates per `project`; group key `(projectId, artifactId)`.
-  - **Lifecycle:** created `PENDING` by the job, and never written by it again. A reviewer moves it to `RESOLVED` once they can say whether the entry should be banned or kept, or to `IGNORED` when there is no conclusive evidence either way and the entry is therefore kept, and may add `notes`. Kept indefinitely, including after it stops conflicting.
+  - **Lifecycle:** created `PENDING` by the job, and never written by it again. A reviewer moves it to `RESOLVED` once they can say whether the entry should be banned or kept, and may add `notes`. Kept indefinitely, including after it stops conflicting.
 
 ## 10. Database schema diagram (only if schema changes)
 ```mermaid
@@ -105,7 +105,7 @@ erDiagram
         int project_id PK "(new) FK to project"
         string artifact_id PK "(new)"
         string group_id PK "(new)"
-        string status "(new) PENDING|RESOLVED|IGNORED"
+        string status "(new) PENDING|RESOLVED"
         string notes "(new, nullable)"
         timestamp detected_at "(new)"
     }

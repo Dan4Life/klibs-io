@@ -24,11 +24,6 @@ class SuspiciousPackageCandidateCollectionDbTest : BaseUnitWithDbLayerTest() {
     @Autowired
     private lateinit var jdbcTemplate: JdbcTemplate
 
-    private fun candidates(): List<SuspiciousPackageCandidateEntity> =
-        repository.findAll().sortedWith(compareBy({ it.projectId }, { it.groupId }))
-
-    private fun candidatesOf(projectId: Int) = candidates().filter { it.projectId == projectId }
-
     @Test
     @Sql(SEED)
     fun `records one PENDING row per conflicting entry`() {
@@ -107,15 +102,36 @@ class SuspiciousPackageCandidateCollectionDbTest : BaseUnitWithDbLayerTest() {
         repository.insertMissingCandidates()
 
         review(47002, "tool", "org.gamma", CandidateStatus.RESOLVED, "the original")
-        review(47002, "tool", "org.delta", CandidateStatus.IGNORED, "inconclusive")
+        review(47002, "tool", "org.delta", CandidateStatus.RESOLVED, "a fork, kept")
 
         val byGroup = candidatesOf(47002).associateBy { it.groupId }
         assertEquals(CandidateStatus.RESOLVED, byGroup.getValue("org.gamma").status)
         assertEquals("the original", byGroup.getValue("org.gamma").notes)
-        assertEquals(CandidateStatus.IGNORED, byGroup.getValue("org.delta").status)
-        assertEquals("inconclusive", byGroup.getValue("org.delta").notes)
+        assertEquals(CandidateStatus.RESOLVED, byGroup.getValue("org.delta").status)
+        assertEquals("a fork, kept", byGroup.getValue("org.delta").notes)
         assertEquals(CandidateStatus.PENDING, byGroup.getValue("org.epsilon").status)
         assertNull(byGroup.getValue("org.epsilon").notes)
+    }
+
+    @Test
+    @Sql(SEED)
+    fun `adds a groupId that joins a reviewed conflict later, leaving its siblings untouched`() {
+        repository.insertMissingCandidates()
+        review(47001, "lib", "org.alpha", CandidateStatus.RESOLVED, "the original")
+        review(47001, "lib", "io.github.beta", CandidateStatus.RESOLVED, "a fork, kept")
+
+        publish(47104, 47001, "org.late", "lib")
+        val inserted = repository.insertMissingCandidates()
+
+        assertEquals(1, inserted, "only the groupId that was not already recorded")
+        val byGroup = candidatesOf(47001).associateBy { it.groupId }
+        assertEquals(3, byGroup.size)
+        assertEquals(CandidateStatus.PENDING, byGroup.getValue("org.late").status)
+        assertNull(byGroup.getValue("org.late").notes)
+        assertEquals(CandidateStatus.RESOLVED, byGroup.getValue("org.alpha").status)
+        assertEquals("the original", byGroup.getValue("org.alpha").notes)
+        assertEquals(CandidateStatus.RESOLVED, byGroup.getValue("io.github.beta").status)
+        assertEquals("a fork, kept", byGroup.getValue("io.github.beta").notes)
     }
 
     @Test
@@ -135,6 +151,11 @@ class SuspiciousPackageCandidateCollectionDbTest : BaseUnitWithDbLayerTest() {
         assertNotNull(remaining.single { it.groupId == "io.github.beta" })
     }
 
+    private fun candidates(): List<SuspiciousPackageCandidateEntity> =
+        repository.findAll().sortedWith(compareBy({ it.projectId }, { it.groupId }))
+
+    private fun candidatesOf(projectId: Int) = candidates().filter { it.projectId == projectId }
+
     private fun review(
         projectId: Int,
         artifactId: String,
@@ -148,6 +169,23 @@ class SuspiciousPackageCandidateCollectionDbTest : BaseUnitWithDbLayerTest() {
             WHERE project_id = ? AND artifact_id = ? AND group_id = ?
             """.trimIndent(),
             status.name, notes, projectId, artifactId, groupId,
+        )
+    }
+
+    private fun publish(id: Int, projectId: Int, groupId: String, artifactId: String) {
+        jdbcTemplate.update(
+            "INSERT INTO maven_artifact (id, group_id, artifact_id, version) VALUES (?, ?, ?, '1.0.0')",
+            id, groupId, artifactId,
+        )
+        jdbcTemplate.update(
+            """
+            INSERT INTO package (id, project_id, release_ts, created_at, group_id, artifact_id, version, build_tool,
+                                 build_tool_version, kotlin_version, developers, licenses, scraper_type,
+                                 maven_artifact_id)
+            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, '1.0.0', 'gradle', '8.0', '2.0.0', '[]'::jsonb,
+                    '[]'::jsonb, 'SEARCH_MAVEN', ?)
+            """.trimIndent(),
+            id, projectId, groupId, artifactId, id,
         )
     }
 }
