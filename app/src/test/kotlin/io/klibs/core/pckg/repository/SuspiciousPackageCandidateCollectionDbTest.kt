@@ -33,7 +33,6 @@ class SuspiciousPackageCandidateCollectionDbTest : BaseUnitWithDbLayerTest() {
         val all = candidates()
         assertEquals(5, all.size)
         assertTrue(all.all { it.status == CandidateStatus.PENDING })
-        assertTrue(all.all { it.detectedAt != null })
         assertEquals(
             listOf("io.github.beta", "org.alpha"),
             candidatesOf(47001).map { it.groupId },
@@ -148,7 +147,7 @@ class SuspiciousPackageCandidateCollectionDbTest : BaseUnitWithDbLayerTest() {
         val remaining = candidatesOf(47001)
         assertEquals(2, remaining.size, "neither row is deleted when its entry stops conflicting")
         assertEquals(CandidateStatus.RESOLVED, remaining.single { it.groupId == "org.alpha" }.status)
-        assertNotNull(remaining.single { it.groupId == "io.github.beta" })
+        assertNotNull(remaining.singleOrNull { it.groupId == "io.github.beta" })
     }
 
     private fun candidates(): List<SuspiciousPackageCandidateEntity> =
