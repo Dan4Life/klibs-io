@@ -39,7 +39,10 @@ Affected: maintainers working the candidate queue, and authors whose libraries a
 ### Edge cases
 - **The fork was renamed or deleted.** Neither is found, so the candidate stays `PENDING` — a miss costs a manual review, not a wrong ban.
 - **GitHub is unavailable or rate-limited.** No decision is recorded; a failed lookup is never read as "not a fork".
-- **The candidate no longer conflicts.** Candidate rows are kept after a conflict disappears, so a row can describe a state that no longer holds. Banning one entry also deletes its `package` rows, which can leave siblings under a single `groupId` and drop them out of detection mid-run. The conflict set is therefore taken once at the start of a run: otherwise, where every member of a conflict is a suspect — 2 cases in the production copy, both of them one publisher using a flat and a nested namespace for the same library — only whichever happened to be processed first would be banned.
+- **The candidate no longer conflicts.** Candidate rows stay in the database after their conflict disappears. Each run therefore checks which candidates still conflict — the same `artifactId` under more than
+  one `groupId` in one project — and skips the rest, leaving `status` and `notes` unchanged.                                                                                        
+- **A ban can remove a conflict during the run.** Banning one entry deletes its `package` rows, which can leave a sibling as the only `groupId` for that artifact. The conflicting entries are identified once,
+  at the start of the run, so a ban never disqualifies an entry that qualified when the run began.
 
 ## 4. Functional requirements
 - **FR-001:** The system MUST ban a candidate only when all hold: it is still `PENDING`, so no reviewer has already decided it; its `groupId` is `io.github.<owner>` or `com.github.<owner>`; the encoded owner differs from the owner of the repository the candidate's project resolves to; that owner holds a GitHub fork of that repository; and nothing outside the candidate's own project is known to depend on the coordinate.
