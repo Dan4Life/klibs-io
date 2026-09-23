@@ -23,4 +23,7 @@ data class GitHubRepository(
     val stars: Int,
     val openIssues: Int? = null,
     val lastActivity: Instant,
+
+    val fork: Boolean = false,
+    val parentFullName: String? = null,
 )

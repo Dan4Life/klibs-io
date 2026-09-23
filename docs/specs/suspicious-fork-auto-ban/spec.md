@@ -40,7 +40,7 @@ Affected: maintainers working the candidate queue, and authors whose libraries a
 - **The fork was renamed or deleted.** Neither is found, so the candidate stays `PENDING` — a miss costs a manual review, not a wrong ban.
 - **GitHub is unavailable or rate-limited.** No decision is recorded; a failed lookup is never read as "not a fork".
 - **The candidate no longer conflicts.** Candidate rows stay in the database after their conflict disappears. Each run therefore checks which candidates still conflict — the same `artifactId` under more than
-  one `groupId` in one project — and skips the rest, leaving `status` and `notes` unchanged.                                                                                        
+  one `groupId` in one project — and skips the rest, leaving `status` and `notes` unchanged.
 - **A ban can remove a conflict during the run.** Banning one entry deletes its `package` rows, which can leave a sibling as the only `groupId` for that artifact. The conflicting entries are identified once,
   at the start of the run, so a ban never disqualifies an entry that qualified when the run began.
 
@@ -55,7 +55,7 @@ Affected: maintainers working the candidate queue, and authors whose libraries a
 
 ## 5. Non-functional requirements
 - **Dataset size:** small. Measured against a production copy with data through 2026-06-22: of the 2,132 candidate rows, 329 are `io.github.*` and 6 `com.github.*`; **119** have an encoded owner differing from the repository owner, collapsing to 41 `groupId`s and **44 distinct `(owner, repository)` pairs**. The qualifying set is one set-based query; only the fork lookup happens outside it.
-- **External rate limits:** ~44 GitHub repository lookups for a full first run, one per newly qualifying `(owner, repository)` pair thereafter, sharing the authenticated budget with the existing GitHub jobs. Exhausting the budget must degrade to "no decision", not "no fork" (FR-005).
+- **External rate limits:** ~44 GitHub repository lookups per run. Candidates still `PENDING` are looked up again on each daily run, so a failed lookup is retried and a fork created later is caught. The lookups share the authenticated budget with the existing GitHub jobs. Exhausting the budget must degrade to "no decision", not "no fork" (FR-005).
 - **Concurrency:** one daily scheduled job with its own ShedLock name.
 - **Observability:** per run, counts of evaluated, banned, and skipped-by-reason. Each ban is logged individually with its coordinate and the forked repository, since it deletes `package` rows.
 

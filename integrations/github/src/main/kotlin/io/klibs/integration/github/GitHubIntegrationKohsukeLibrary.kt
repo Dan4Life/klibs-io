@@ -377,6 +377,8 @@ internal class GitHubIntegrationKohsukeLibrary(
             stars = this.stargazersCount,
             openIssues = this.openIssueCount,
             lastActivity = this.pushedAt.toInstant(),
+            fork = this.isFork,
+            parentFullName = this.parent?.fullName,
         )
     }
 
