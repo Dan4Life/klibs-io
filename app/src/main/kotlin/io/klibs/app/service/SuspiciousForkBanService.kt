@@ -2,65 +2,73 @@ package io.klibs.app.service
 
 import io.klibs.core.pckg.dto.projection.ForkBanCandidateView
 import io.klibs.core.pckg.repository.SuspiciousPackageCandidateRepository
+import io.klibs.core.project.blacklist.CandidateBanRefusedException
+import io.klibs.core.project.blacklist.SuspiciousPackageCandidateBanService
+import io.klibs.integration.github.GitHubIntegration
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
 class SuspiciousForkBanService(
     private val suspiciousPackageCandidateRepository: SuspiciousPackageCandidateRepository,
-    private val forkChecker: ForkChecker,
-    private val suspiciousForkBanner: SuspiciousForkBanner,
+    private val suspiciousPackageCandidateBanService: SuspiciousPackageCandidateBanService,
+    private val gitHubIntegration: GitHubIntegration,
 ) {
 
     fun banConfirmedForks(): ForkBanSummary {
         val candidates = suspiciousPackageCandidateRepository.findForkBanCandidates()
-        val checks = mutableMapOf<Pair<String, String>, ForkCheckResult>()
+        val checks = mutableMapOf<Pair<String, String>, ForkCheck>()
 
-        val outcomes = candidates.map { candidate ->
+        val checked = candidates.map { candidate ->
             val parentFullName = "${candidate.repoOwner}/${candidate.repoName}"
             val check = checks.getOrPut(candidate.suspectOwner.lowercase() to parentFullName.lowercase()) {
-                forkChecker.checkIsForkOf(candidate.suspectOwner, candidate.repoName, parentFullName)
+                checkIsForkOf(candidate.suspectOwner, candidate.repoName, parentFullName)
             }
-            when (check) {
-                ForkCheckResult.FORK -> ban(candidate)
-                ForkCheckResult.NOT_FORK -> Outcome.NOT_FORK
-                ForkCheckResult.NO_DECISION -> Outcome.NO_DECISION
-            }
+            candidate to check
         }
+
+        val banned = checked.filter { it.second == ForkCheck.FORK }.count { ban(it.first) }
 
         return ForkBanSummary(
             evaluated = candidates.size,
-            banned = outcomes.count { it == Outcome.BANNED },
-            notFork = outcomes.count { it == Outcome.NOT_FORK },
-            noDecision = outcomes.count { it == Outcome.NO_DECISION },
-            banRefused = outcomes.count { it == Outcome.BAN_REFUSED },
+            banned = banned,
+            notFork = checked.count { it.second == ForkCheck.NOT_FORK },
+            noDecision = checked.count { it.second == ForkCheck.NO_DECISION },
         )
     }
 
-    private fun ban(candidate: ForkBanCandidateView): Outcome {
-        val forkFullName = "${candidate.suspectOwner}/${candidate.repoName}"
-        val banned = try {
-            suspiciousForkBanner.ban(candidate, forkFullName)
+    private fun checkIsForkOf(suspectOwner: String, repoName: String, parentFullName: String): ForkCheck {
+        val forkParentFullName = try {
+            gitHubIntegration.getForkParentFullName(suspectOwner, repoName)
         } catch (e: Exception) {
-            logger.warn("Could not ban {}:{}", candidate.groupId, candidate.artifactId, e)
-            false
-        }
-        if (!banned) {
-            return Outcome.BAN_REFUSED
+            logger.warn("Could not look up GitHub repository {}/{}", suspectOwner, repoName, e)
+            return ForkCheck.NO_DECISION
         }
 
-        logger.info(
-            "Banned {}:{}: {} is a fork of {}/{}",
-            candidate.groupId,
-            candidate.artifactId,
-            forkFullName,
-            candidate.repoOwner,
-            candidate.repoName,
-        )
-        return Outcome.BANNED
+        val isFork = forkParentFullName.equals(parentFullName, ignoreCase = true)
+        return if (isFork) ForkCheck.FORK else ForkCheck.NOT_FORK
     }
 
-    private enum class Outcome { BANNED, NOT_FORK, NO_DECISION, BAN_REFUSED }
+    private fun ban(candidate: ForkBanCandidateView): Boolean {
+        val forkFullName = "${candidate.suspectOwner}/${candidate.repoName}"
+        val reason = "Auto-banned: $forkFullName is a fork of ${candidate.repoOwner}/${candidate.repoName}"
+        try {
+            suspiciousPackageCandidateBanService.banCandidate(
+                projectId = candidate.projectId,
+                artifactId = candidate.artifactId,
+                groupId = candidate.groupId,
+                reason = reason,
+            )
+        } catch (e: CandidateBanRefusedException) {
+            logger.error("Could not ban {}:{}", candidate.groupId, candidate.artifactId, e)
+            return false
+        }
+
+        logger.info("Banned {}:{}: {}", candidate.groupId, candidate.artifactId, reason)
+        return true
+    }
+
+    private enum class ForkCheck { FORK, NOT_FORK, NO_DECISION }
 
     private companion object {
         private val logger = LoggerFactory.getLogger(SuspiciousForkBanService::class.java)
@@ -72,5 +80,4 @@ data class ForkBanSummary(
     val banned: Int,
     val notFork: Int,
     val noDecision: Int,
-    val banRefused: Int,
 )

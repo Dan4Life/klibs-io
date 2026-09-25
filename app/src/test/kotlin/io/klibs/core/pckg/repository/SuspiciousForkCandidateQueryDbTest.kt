@@ -56,12 +56,6 @@ class SuspiciousForkCandidateQueryDbTest : BaseUnitWithDbLayerTest() {
 
     @Test
     @Sql(SEED)
-    fun `skips a candidate whose conflict no longer holds`() {
-        assertFalse("lone" in qualifyingArtifacts())
-    }
-
-    @Test
-    @Sql(SEED)
     fun `skips a candidate depended on from another project or from no project`() {
         assertFalse("depended" in qualifyingArtifacts())
         assertFalse("orphan-dep" in qualifyingArtifacts())

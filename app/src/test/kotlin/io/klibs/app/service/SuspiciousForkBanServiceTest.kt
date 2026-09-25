@@ -5,8 +5,8 @@ import io.klibs.core.pckg.entity.SuspiciousPackageCandidateEntity
 import io.klibs.core.pckg.entity.SuspiciousPackageCandidateKey
 import io.klibs.core.pckg.enums.CandidateStatus
 import io.klibs.core.pckg.repository.SuspiciousPackageCandidateRepository
+import io.klibs.core.pckg.service.SuspiciousPackageCandidateCollectionService
 import io.klibs.integration.github.GitHubIntegration
-import io.klibs.integration.github.model.GitHubRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.times
@@ -18,7 +18,6 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.context.jdbc.Sql
 import java.io.IOException
-import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
@@ -35,6 +34,9 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
     private lateinit var uut: SuspiciousForkBanService
 
     @Autowired
+    private lateinit var collectionService: SuspiciousPackageCandidateCollectionService
+
+    @Autowired
     private lateinit var candidateRepository: SuspiciousPackageCandidateRepository
 
     @Autowired
@@ -45,7 +47,8 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
         stubFork("suspect")
         stubFork("suspect-a")
         stubFork("suspect-b")
-        whenever(gitHubIntegration.getRepository("flaky", "zipline")).thenAnswer { throw IOException("rate limited") }
+        whenever(gitHubIntegration.getForkParentFullName("flaky", "zipline"))
+            .thenAnswer { throw IOException("rate limited") }
     }
 
     @Test
@@ -84,6 +87,27 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
 
         assertNull(banReason("io.github.renamed", "core"))
         assertEquals(CandidateStatus.PENDING, candidate("core", "io.github.renamed").status)
+    }
+
+    @Test
+    @Sql(SEED)
+    fun `leaves a candidate pending when its owner's fork has another parent`() {
+        whenever(gitHubIntegration.getForkParentFullName("suspect", "zipline")).thenReturn("someone-else/zipline")
+
+        uut.banConfirmedForks()
+
+        assertNull(banReason("io.github.suspect", "loader"))
+        assertEquals(CandidateStatus.PENDING, candidate("loader", "io.github.suspect").status)
+    }
+
+    @Test
+    @Sql(SEED)
+    fun `matches the fork's parent ignoring case`() {
+        whenever(gitHubIntegration.getForkParentFullName("suspect", "zipline")).thenReturn("CashApp/Zipline")
+
+        uut.banConfirmedForks()
+
+        assertEquals(SUSPECT_REASON, banReason("io.github.suspect", "loader"))
     }
 
     @Test
@@ -133,6 +157,33 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
 
     @Test
     @Sql(SEED)
+    fun `never bans a candidate whose conflict ended before the refresh`() {
+        jdbcTemplate.update("DELETE FROM package WHERE group_id = 'app.cash.zipline' AND artifact_id = 'loader'")
+
+        collectionService.refreshCandidates()
+        uut.banConfirmedForks()
+
+        assertNull(banReason("io.github.suspect", "loader"))
+        assertEquals(1, packageCount("io.github.suspect", "loader"))
+    }
+
+    @Test
+    @Sql(SEED)
+    fun `a refused ban leaves its candidate unchanged and the run continues`() {
+        jdbcTemplate.update("DELETE FROM package WHERE group_id = 'io.github.suspect' AND artifact_id = 'loader'")
+
+        val summary = uut.banConfirmedForks()
+
+        val candidate = candidate("loader", "io.github.suspect")
+        assertEquals(CandidateStatus.PENDING, candidate.status)
+        assertNull(candidate.notes)
+        assertNull(banReason("io.github.suspect", "loader"))
+        assertEquals(SUSPECT_REASON, banReason("io.github.suspect", "runtime"))
+        assertEquals(3, summary.banned)
+    }
+
+    @Test
+    @Sql(SEED)
     fun `keeps a non-qualifying candidate's reviewer-set status and notes`() {
         uut.banConfirmedForks()
 
@@ -146,7 +197,7 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
     fun `reports each outcome`() {
         val summary = uut.banConfirmedForks()
 
-        assertEquals(ForkBanSummary(evaluated = 6, banned = 4, notFork = 1, noDecision = 1, banRefused = 0), summary)
+        assertEquals(ForkBanSummary(evaluated = 6, banned = 4, notFork = 1, noDecision = 1), summary)
     }
 
     @Test
@@ -154,7 +205,7 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
     fun `looks up each suspect repository once per run`() {
         uut.banConfirmedForks()
 
-        verify(gitHubIntegration, times(1)).getRepository("suspect", "zipline")
+        verify(gitHubIntegration, times(1)).getForkParentFullName("suspect", "zipline")
     }
 
     @Test
@@ -165,29 +216,13 @@ class SuspiciousForkBanServiceTest : BaseUnitWithDbLayerTest() {
 
         assertEquals(0, secondRun.banned)
         assertEquals(4, bannedCount())
-        verify(gitHubIntegration, times(1)).getRepository("suspect", "zipline")
+        verify(gitHubIntegration, times(1)).getForkParentFullName("suspect", "zipline")
         assertEquals(2, secondRun.evaluated)
     }
 
     private fun stubFork(owner: String) {
-        whenever(gitHubIntegration.getRepository(owner, "zipline")).thenReturn(fork(owner))
+        whenever(gitHubIntegration.getForkParentFullName(owner, "zipline")).thenReturn("cashapp/zipline")
     }
-
-    private fun fork(owner: String) = GitHubRepository(
-        nativeId = 2,
-        name = "zipline",
-        createdAt = Instant.EPOCH,
-        defaultBranch = "trunk",
-        owner = owner,
-        hasGhPages = false,
-        hasIssues = false,
-        hasWiki = false,
-        archived = false,
-        stars = 0,
-        lastActivity = Instant.EPOCH,
-        fork = true,
-        parentFullName = "cashapp/zipline",
-    )
 
     private fun candidate(artifactId: String, groupId: String): SuspiciousPackageCandidateEntity =
         candidateRepository.findById(SuspiciousPackageCandidateKey(49001, artifactId, groupId)).get()

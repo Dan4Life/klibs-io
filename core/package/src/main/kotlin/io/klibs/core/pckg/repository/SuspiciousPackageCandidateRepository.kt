@@ -32,6 +32,27 @@ interface SuspiciousPackageCandidateRepository :
     )
     fun insertMissingCandidates(): Int
 
+    @Modifying
+    @Transactional
+    @Query(
+        value = """
+            DELETE FROM suspicious_package_candidate candidate
+            WHERE candidate.status = 'PENDING'
+              AND NOT (EXISTS (SELECT 1
+                               FROM package own
+                               WHERE own.project_id = candidate.project_id
+                                 AND own.artifact_id = candidate.artifact_id
+                                 AND own.group_id = candidate.group_id)
+                  AND EXISTS (SELECT 1
+                              FROM package other
+                              WHERE other.project_id = candidate.project_id
+                                AND other.artifact_id = candidate.artifact_id
+                                AND other.group_id <> candidate.group_id))
+        """,
+        nativeQuery = true,
+    )
+    fun deleteStaleCandidates(): Int
+
     @Query(
         value = """
             SELECT candidate.project_id                     AS projectId,
@@ -41,15 +62,6 @@ interface SuspiciousPackageCandidateRepository :
                    repo_owner.login                         AS repoOwner,
                    repo.name                                AS repoName
             FROM suspicious_package_candidate candidate
-                     JOIN (SELECT project_id, artifact_id, group_id,
-                                  count(*) OVER (PARTITION BY project_id, artifact_id) AS group_id_count
-                           FROM (SELECT DISTINCT project_id, artifact_id, group_id
-                                 FROM package
-                                 WHERE project_id IS NOT NULL) distinct_entries) entry
-                          ON entry.project_id = candidate.project_id
-                              AND entry.artifact_id = candidate.artifact_id
-                              AND entry.group_id = candidate.group_id
-                              AND entry.group_id_count > 1
                      JOIN project ON project.id = candidate.project_id
                      JOIN scm_repo repo ON repo.id = project.scm_repo_id
                      JOIN scm_owner repo_owner ON repo_owner.id = repo.owner_id

@@ -90,9 +90,10 @@ class GitHubIntegrationKohsukeLibraryTest {
     }
 
     @Test
-    fun `repository not found returns null for both lookup methods`() {
+    fun `repository not found returns null for every lookup method`() {
         assertNull(uut.getRepository(12345678L))
         assertNull(uut.getRepository("JetBrains", "missing"))
+        assertNull(uut.getForkParentFullName("JetBrains", "missing"))
     }
 
     @ParameterizedTest
@@ -102,22 +103,17 @@ class GitHubIntegrationKohsukeLibraryTest {
 
         assertFailsWith<IOException> { uut.getRepository(12345678L) }
         assertFailsWith<IOException> { uut.getRepository("JetBrains", "missing") }
+        assertFailsWith<IOException> { uut.getForkParentFullName("JetBrains", "missing") }
     }
 
     @Test
     fun `fork repository exposes its parent`() {
-        val repository = uut.getRepository("suspect", "zipline")
-
-        assertEquals(true, repository?.fork)
-        assertEquals("cashapp/zipline", repository?.parentFullName)
+        assertEquals("cashapp/zipline", uut.getForkParentFullName("suspect", "zipline"))
     }
 
     @Test
     fun `non-fork repository has no parent`() {
-        val repository = uut.getRepository("cashapp", "zipline")
-
-        assertEquals(false, repository?.fork)
-        assertNull(repository?.parentFullName)
+        assertNull(uut.getForkParentFullName("cashapp", "zipline"))
     }
 
     @TestConfiguration
@@ -161,11 +157,6 @@ class GitHubIntegrationKohsukeLibraryTest {
 
                     "/repos/suspect/zipline" -> Triple(200, "OK", FORK_REPOSITORY_RESPONSE)
                     "/repos/cashapp/zipline" -> Triple(200, "OK", ORIGINAL_REPOSITORY_RESPONSE)
-                    "/users/suspect", "/users/cashapp" -> Triple(
-                        200,
-                        "OK",
-                        """{"id":3,"login":"${path.substringAfterLast('/')}","type":"User"}"""
-                    )
 
                     "/users/JetBrains" -> {
                         requestRecorder.authorizations += authorization
