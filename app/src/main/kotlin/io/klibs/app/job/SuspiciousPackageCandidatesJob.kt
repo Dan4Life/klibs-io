@@ -16,7 +16,7 @@ class SuspiciousPackageCandidatesJob(
     private val suspiciousForkBanService: SuspiciousForkBanService,
 ) {
 
-    @Scheduled(cron = "0 0 2 * * *")
+    @Scheduled(cron = "0 0 4 * * *")
     @SchedulerLock(name = "suspiciousPackageCandidatesLock", lockAtMostFor = "1h")
     fun collectAndBan() {
         LockAssert.assertLocked()

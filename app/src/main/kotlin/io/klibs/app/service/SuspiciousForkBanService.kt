@@ -2,7 +2,6 @@ package io.klibs.app.service
 
 import io.klibs.core.pckg.dto.projection.ForkBanCandidateView
 import io.klibs.core.pckg.repository.SuspiciousPackageCandidateRepository
-import io.klibs.core.project.blacklist.CandidateBanRefusedException
 import io.klibs.core.project.blacklist.SuspiciousPackageCandidateBanService
 import io.klibs.integration.github.GitHubIntegration
 import org.slf4j.LoggerFactory
@@ -59,7 +58,7 @@ class SuspiciousForkBanService(
                 groupId = candidate.groupId,
                 reason = reason,
             )
-        } catch (e: CandidateBanRefusedException) {
+        } catch (e: Exception) {
             logger.error("Could not ban {}:{}", candidate.groupId, candidate.artifactId, e)
             return false
         }

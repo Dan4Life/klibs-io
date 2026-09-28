@@ -57,7 +57,7 @@ Affected: maintainers working the candidate queue, and authors whose libraries a
 - **Dataset size:** small. Measured against a production copy with data through 2026-06-22: of the 2,132 candidate rows, 329 are `io.github.*` and 6 `com.github.*`; **119** have an encoded owner differing from the repository owner, collapsing to 41 `groupId`s and **44 distinct `(owner, repository)` pairs**. The qualifying set is one set-based query; only the fork lookup happens outside it.
 - **External rate limits:** ~44 GitHub repository lookups per run. Candidates still `PENDING` are looked up again on each daily run, so a failed lookup is retried and a fork created later is caught. The lookups share the authenticated budget with the existing GitHub jobs. Exhausting the budget must degrade to "no decision", not "no fork" (FR-005).
 - **Concurrency:** one daily job under one ShedLock name: collection, then the ban.
-- **Observability:** per run, counts of stale rows deleted, evaluated, banned, and skipped-by-reason. Each ban is logged individually with its coordinate and the forked repository, since it deletes `package` rows. A refused ban is logged as an error.
+- **Observability:** per run, counts of stale rows deleted, evaluated, banned, and skipped-by-reason. Each ban is logged individually with its coordinate and the forked repository, since it deletes `package` rows. A ban that fails, including a refused one, is logged as an error and the run moves on.
 
 ## 6. Out of scope
 - **Impersonation that is not a fork.** Copying source into a fresh repository leaves no fork relationship — 13 of the 69 labelled candidates. These stay `PENDING`.
